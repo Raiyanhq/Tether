@@ -23,5 +23,5 @@ if (process.env.MOCK_LLM === "1") {
   llm = createAnthropicLlm({ apiKey, model, baseURL: process.env.ANTHROPIC_BASE_URL });
 }
 
-createApp({ llm, allowedOrigins, rateLimitPerMinute: Number(process.env.RATE_LIMIT_PER_MIN ?? 60) })
+createApp({ llm, allowedOrigins, rateLimitPerMinute: Number(process.env.RATE_LIMIT_PER_MIN ?? 60), trustProxy: process.env.TRUST_PROXY === "1" })
   .listen(port, () => console.log(`Tether server on http://localhost:${port} (model ${model})`));

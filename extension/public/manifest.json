@@ -19,7 +19,12 @@
     "default_path": "sidepanel.html"
   },
   "action": {
-    "default_title": "Open Tether"
+    "default_title": "Open Tether",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "content_scripts": [
     {
@@ -33,5 +38,10 @@
       "run_at": "document_idle"
     }
   ],
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZur1EGD0dmvphUlJ6h3ahNtcoUqTtBKE34pEkgL7qSF2tHGth+aXf6lkH/XYT1AJrTtG5MP87dZvzTHF5FfwP/7zsxox9DANPbBNdfcxPU1CDxaUvsn023e/RKaYpTvzW2Ag24SI35QrX1VWE6F2aDcAHJtXP5KvOXNmdE6alnYUQyh99e3jmG/wfhnqXAOC+CtyF1st5NwsfLztOCNhXOnvNiWmgHkIHPkzLLLFSrMNJcwQUpX6ieMeIbpVoeZsz5etL0MxQ5jbJW7n5YgoSrEeG+5OfhvO5hucSTP41QEpCImzmXfkoUGUnWa3vgoIUPd3T/FYok2QvT40qwUvQIDAQAB"
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyZur1EGD0dmvphUlJ6h3ahNtcoUqTtBKE34pEkgL7qSF2tHGth+aXf6lkH/XYT1AJrTtG5MP87dZvzTHF5FfwP/7zsxox9DANPbBNdfcxPU1CDxaUvsn023e/RKaYpTvzW2Ag24SI35QrX1VWE6F2aDcAHJtXP5KvOXNmdE6alnYUQyh99e3jmG/wfhnqXAOC+CtyF1st5NwsfLztOCNhXOnvNiWmgHkIHPkzLLLFSrMNJcwQUpX6ieMeIbpVoeZsz5etL0MxQ5jbJW7n5YgoSrEeG+5OfhvO5hucSTP41QEpCImzmXfkoUGUnWa3vgoIUPd3T/FYok2QvT40qwUvQIDAQAB",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }

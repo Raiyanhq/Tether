@@ -13,6 +13,8 @@ export interface AppOptions {
   llm: Llm;
   allowedOrigins: string[];
   rateLimitPerMinute?: number;
+  /** Set when running behind a reverse proxy (Render, Fly, nginx) so rate limiting sees real client IPs. */
+  trustProxy?: boolean;
 }
 
 class HttpError extends Error {
@@ -22,8 +24,9 @@ class HttpError extends Error {
 }
 
 // The proxy forwards and forgets: no request text is ever logged or stored.
-export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60 }: AppOptions) {
+export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60, trustProxy = false }: AppOptions) {
   const app = express();
+  if (trustProxy) app.set("trust proxy", 1);
   app.disable("x-powered-by");
 
   app.use(

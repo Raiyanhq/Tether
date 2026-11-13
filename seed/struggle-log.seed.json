@@ -1,0 +1,21 @@
+{
+  "_comment": "One student, one week, three related CS documents. daysAgo values are converted to real timestamps when loaded.",
+  "terms": [
+    { "term": "amortized", "lookups": 3, "daysAgo": 1, "sources": ["https://cs-notes.example/amortized-analysis", "https://cs-notes.example/dynamic-arrays"], "pinnedAnalogy": "paying a yearly bill in monthly instalments", "definition": "Spread out over many operations, so the average cost per operation stays small.", "analogy": "paying a yearly bill in monthly instalments" },
+    { "term": "call stack", "lookups": 3, "daysAgo": 2, "sources": ["https://cs-notes.example/recursion", "https://cs-notes.example/amortized-analysis"], "definition": "The pile of function calls that are still waiting to finish.", "analogy": "a pile of sticky notes, newest on top" },
+    { "term": "recursion", "lookups": 2, "daysAgo": 2, "sources": ["https://cs-notes.example/recursion"], "definition": "When a function solves a problem by calling itself on a smaller version.", "analogy": "Russian nesting dolls" },
+    { "term": "base case", "lookups": 1, "daysAgo": 3, "sources": ["https://cs-notes.example/recursion"], "definition": "The simplest version of the problem, answered directly so the calls can stop.", "analogy": "the bottom step of a staircase" },
+    { "term": "hash table", "lookups": 1, "daysAgo": 5, "sources": ["https://cs-notes.example/hash-tables"], "definition": "A structure that finds items quickly by turning each key into a position.", "analogy": "a coat check with numbered tickets" },
+    { "term": "collision", "lookups": 1, "daysAgo": 5, "sources": ["https://cs-notes.example/hash-tables"], "definition": "When two different keys map to the same position.", "analogy": "two people given the same locker number" },
+    { "term": "dynamic array", "lookups": 1, "daysAgo": 6, "sources": ["https://cs-notes.example/dynamic-arrays"], "definition": "A list that grows by copying itself into a bigger space when it fills up.", "analogy": "moving to a bigger apartment when the old one is full" }
+  ],
+  "notSure": [
+    { "topic": "call stack", "stepId": "s3", "lessonTitle": "How recursion unwinds", "daysAgo": 4 },
+    { "topic": "call stack", "stepId": "s2", "lessonTitle": "Tracing nested function calls", "daysAgo": 2 }
+  ],
+  "sessions": [
+    { "url": "https://cs-notes.example/recursion", "title": "Recursion and the Call Stack", "lastChunkRead": "c4", "lastHeading": "Each call waits for the next", "lastTakeaway": "Every recursive call pauses and waits on the call above it until the base case answers.", "openQuestion": "why does the base case matter", "daysAgo": 0 },
+    { "url": "https://cs-notes.example/amortized-analysis", "title": "Amortized Analysis of Dynamic Arrays", "lastChunkRead": "c3", "lastHeading": "Rare costly steps, many cheap ones", "lastTakeaway": "Resizing is expensive, but it happens so rarely that the average cost per push stays small.", "openQuestion": "how is this different from average case", "daysAgo": 1 },
+    { "url": "https://cs-notes.example/hash-tables", "title": "Hash Tables Explained", "lastChunkRead": "c2", "lastHeading": "Keys become positions", "lastTakeaway": "A hash function turns a key into a slot number so lookups skip the searching.", "openQuestion": "", "daysAgo": 5 }
+  ]
+}
