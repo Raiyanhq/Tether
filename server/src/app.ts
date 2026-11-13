@@ -135,7 +135,10 @@ export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60, trustP
     else if (e?.type === "entity.too.large") { status = 413; code = "payload_too_large"; message = "That upload is too large."; }
     else if (e?.type === "entity.parse.failed") { status = 400; code = "bad_request"; message = "Request body is not valid JSON."; }
     else if (err instanceof BadModelOutputError) { status = 502; code = "bad_model_output"; message = "The AI reply was malformed twice. Please try again."; }
-    else if (typeof e?.status === "number") { status = 502; code = "upstream"; message = "The AI service had a problem. Please try again."; }
+    else if (typeof e?.status === "number") {
+      status = 502; code = "upstream"; message = "The AI service had a problem. Please try again.";
+      console.error(`upstream error: provider returned ${e.status}`); // status only, never request text
+    }
     if (!res.headersSent) res.status(status).json({ error: { code, message } });
   });
 

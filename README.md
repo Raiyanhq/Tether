@@ -8,7 +8,7 @@ A Chrome side-panel extension for neurodivergent learners. It breaks dense text 
 
 ```
 /extension   Chrome MV3 extension (Vite + React + TypeScript)
-/server      Express proxy that holds the Anthropic API key + prompt templates
+/server      Express proxy that holds the model API key + prompt templates (Gemini by default)
 /seed        demo struggle log and offline demo lesson
 ```
 
@@ -21,7 +21,7 @@ Requires Node 20+ and Chrome.
 ```bash
 cd server
 npm install
-cp .env.example .env        # then put your key in ANTHROPIC_API_KEY
+cp .env.example .env        # then put your key in GEMINI_API_KEY
 npm run dev                 # http://localhost:8787
 ```
 
@@ -29,8 +29,10 @@ No key yet? `npm run start:mock` serves canned responses so the whole UI works o
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | – | Required unless `MOCK_LLM=1`. Never goes in extension code. |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | |
+| `LLM_PROVIDER` | auto | `gemini` or `anthropic`. If unset, whichever key is present is used (Gemini first). |
+| `GEMINI_API_KEY` | – | Required for Gemini unless `MOCK_LLM=1`. Never goes in extension code. |
+| `GEMINI_MODEL` | `gemini-3.6-flash` | Any Gemini model id that supports image input and JSON output. |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | – / `claude-sonnet-5-5` | Optional alternative provider. |
 | `PORT` | `8787` | |
 | `ALLOWED_ORIGINS` | the extension's origin | Comma-separated. CORS is locked to these. The extension has a fixed id (see below), so the default works. |
 | `RATE_LIMIT_PER_MIN` | `60` | Per client IP. |
@@ -54,14 +56,14 @@ Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpack
 ### Tests
 
 ```bash
-cd server && npm test            # proxy, validation, retry, SSE, real SDK path against a fake endpoint
+cd server && npm test            # proxy, validation, retry, SSE, Gemini and Anthropic backends against fake endpoints
 cd extension && npm test         # struggle log, seed, WCAG contrast for every tint, prefs
 cd extension && npm run e2e      # drives the built extension in real Chromium against the mock server
 ```
 
 ## Going live
 
-1. Deploy `/server` anywhere that runs Node or Docker (a `Dockerfile` is included). Set `ANTHROPIC_API_KEY`, and `TRUST_PROXY=1` if behind a proxy. HTTPS is required.
+1. Deploy `/server` anywhere that runs Node or Docker (a `Dockerfile` is included). Set `GEMINI_API_KEY`, and `TRUST_PROXY=1` if behind a proxy. HTTPS is required.
 2. Rebuild the extension pointing at it: `VITE_SERVER_URL=https://your-host npm run build`. The build also rewrites `host_permissions` in the manifest.
 3. The server keeps no database and logs no user text: it forwards and forgets.
 

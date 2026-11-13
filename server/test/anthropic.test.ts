@@ -2,7 +2,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import http, { type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { createAnthropicLlm, extractJson } from "../src/anthropicLlm.js";
+import { createAnthropicLlm } from "../src/anthropicBackend.js";
+import { extractJson } from "../src/llmCore.js";
 import { BadModelOutputError } from "../src/llm.js";
 
 let fake: Server, baseURL: string;
