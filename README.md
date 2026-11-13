@@ -3,7 +3,7 @@
 A Chrome side-panel extension for neurodivergent learners. It breaks dense text into small cards, tutors you through a problem on a notepad, and, unlike other study tools, **remembers why you got stuck** (the struggle log).
 
 - **Read**: highlight or paste a passage, get 3–6 chunk cards, underlined jargon with plain definitions and analogies.
-- **Tutor**: a 4–8 step lesson, spoken aloud while the working is written on a notepad. Interrupt any step by voice, click or keyboard.
+- **Tutor**: a 4–8 step lesson, spoken aloud while the working is written on a notepad in a handwriting style, with a pen that writes the problem and each step as it is spoken. Interrupt any step by voice, click or keyboard. The voice can be a natural ElevenLabs voice, with the browser's built-in voice as the fallback.
 - **Memory**: everything you look up or mark "not sure" is stored locally and used to keep analogies consistent, start lessons at the weak prerequisite, and re-orient you when you come back.
 
 ```
@@ -37,7 +37,10 @@ No key yet? `npm run start:mock` serves canned responses so the whole UI works o
 | `ALLOWED_ORIGINS` | the extension's origin | Comma-separated. CORS is locked to these. The extension has a fixed id (see below), so the default works. |
 | `RATE_LIMIT_PER_MIN` | `60` | Per client IP. |
 | `TRUST_PROXY` | `0` | Set `1` behind a reverse proxy or PaaS. |
-| `MOCK_LLM` | – | `1` = canned responses, no key. |
+| `ELEVENLABS_API_KEY` | – | Optional. Turns on the natural voice. Without it Tutor Mode uses the browser's built-in voice. |
+| `ELEVENLABS_VOICE_ID` | `21m00Tcm4TlvDq8ikWAM` | Any voice available to your ElevenLabs account (copy its id from your Voices page). |
+| `ELEVENLABS_MODEL` | `eleven_flash_v2_5` | Low-latency model. `eleven_v4` is higher quality but slower. |
+| `MOCK_LLM` | – | `1` = canned responses and a silent mock voice, no keys. |
 
 Check the real model end to end: `npm run smoke`.
 
@@ -86,6 +89,7 @@ Fallbacks: if the venue wifi dies, the demo lesson plays from a built-in copy, a
 
 - The struggle log lives in `chrome.storage.local`. It is sent to the server only as prompt context for the current request.
 - The server never logs or stores request text.
+- If you turn on the natural voice, the lines Tether speaks (lesson narration and answers to your questions) go through your server to ElevenLabs to be turned into audio. Your struggle log and the pages you read are not sent. Untick **Natural voice** in the Tutor controls, or leave `ELEVENLABS_API_KEY` unset, to keep all speech on the device.
 - No accounts, no database, no analytics.
 - The extension never modifies the host page. The content script only reads the current selection when the panel asks.
 
@@ -101,4 +105,5 @@ Fallbacks: if the venue wifi dies, the demo lesson plays from a built-in copy, a
 
 - Chrome's built-in PDF viewer blocks content scripts, so highlight-to-send shows a copy-and-paste message instead.
 - Voice input (push-to-talk, hands-free) depends on Chrome allowing microphone access from a side panel. If blocked, the panel offers a one-click tab to grant it, and typing always works. Hands-free barge-in relies on echo cancellation; use headphones for the best result.
+- The natural voice uses ElevenLabs credits per character. Tether caches each spoken line for the session and prefetches the next step, so replays and pauses cost nothing extra.
 - Chrome only.

@@ -128,3 +128,6 @@ export const ChatRequestSchema = z.object({
   context: ChatContextSchema,
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
+
+// ---------- speak ----------
+export const SpeakRequestSchema = z.object({ text: z.string().min(1).max(1500) });

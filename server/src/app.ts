@@ -4,13 +4,16 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import {
   AnalyzeImageRequestSchema, AnalyzeTextRequestSchema, ChatRequestSchema,
-  LessonRequestSchema, LessonStepRequestSchema, MAX_TEXT_CHARS,
+  LessonRequestSchema, LessonStepRequestSchema, MAX_TEXT_CHARS, SpeakRequestSchema,
   type Lesson,
 } from "./schemas.js";
 import { BadModelOutputError, type Llm } from "./llm.js";
+import { unavailableTts, type Tts } from "./tts.js";
 
 export interface AppOptions {
   llm: Llm;
+  /** Optional natural-voice provider (ElevenLabs). Without it, the extension uses the browser's voice. */
+  tts?: Tts;
   allowedOrigins: string[];
   rateLimitPerMinute?: number;
   /** Set when running behind a reverse proxy (Render, Fly, nginx) so rate limiting sees real client IPs. */
@@ -24,7 +27,7 @@ class HttpError extends Error {
 }
 
 // The proxy forwards and forgets: no request text is ever logged or stored.
-export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60, trustProxy = false }: AppOptions) {
+export function createApp({ llm, tts = unavailableTts, allowedOrigins, rateLimitPerMinute = 60, trustProxy = false }: AppOptions) {
   const app = express();
   if (trustProxy) app.set("trust proxy", 1);
   app.disable("x-powered-by");
@@ -49,15 +52,19 @@ export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60, trustP
   });
 
   app.use(express.json({ limit: "12mb" }));
-  app.use(rateLimit({
+  const limited = (limit: number) => rateLimit({
     windowMs: 60_000,
-    limit: rateLimitPerMinute,
+    limit,
     standardHeaders: true,
     legacyHeaders: false,
     handler: (_req, _res, next) => next(new HttpError(429, "rate_limited", "Too many requests. Try again in a minute.")),
-  }));
+  });
+  // Speech has its own, roomier budget: every lesson step is one request, plus one prefetch.
+  const speakLimiter = limited(rateLimitPerMinute * 2);
+  const generalLimiter = limited(rateLimitPerMinute);
+  app.use((req, res, next) => (req.path === "/api/speak" ? next() : generalLimiter(req, res, next)));
 
-  app.get("/health", (_req, res) => { res.json({ ok: true }); });
+  app.get("/health", (_req, res) => { res.json({ ok: true, tts: tts.available }); });
   app.get("/", (_req, res) => {
     res.type("text/plain").send("Tether server is running. The /api routes only answer the Tether extension.\n");
   });
@@ -97,6 +104,11 @@ export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60, trustP
     }
     const step = await llm.lessonStep(req);
     return { ...step, id: req.stepId };
+  }));
+
+  app.post("/api/speak", speakLimiter, route(SpeakRequestSchema, async (req) => {
+    if (!tts.available) throw new HttpError(503, "tts_unavailable", "Natural voice is not set up on the server.");
+    return tts.speak(req.text);
   }));
 
   app.post("/api/analyze-image", route(AnalyzeImageRequestSchema, (req) => llm.analyzeImage(req)));

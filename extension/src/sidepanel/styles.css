@@ -204,8 +204,8 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
   color: var(--text); background: var(--glass-strong); border: 2px solid var(--accent);
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent), 0 10px 24px color-mix(in srgb, var(--accent) 18%, transparent);
 }
-.pad-item.marked { background: var(--mark); color: var(--text); border-color: var(--border); }
-.pad-item.pulse { animation: pulse 1000ms ease-in-out 2; }
+.pad-item.marked { background-image: linear-gradient(var(--mark), var(--mark)); background-repeat: no-repeat; background-size: 100% 100%; color: var(--text); border-color: var(--border); }
+.pad-item.pulse { animation: sweep 700ms ease-out both; } /* highlighter sweeping across the line */
 .pad-num { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; font-size: 0.8rem; font-weight: 700; border-radius: 50%; border: 1.5px solid currentColor; }
 .pad-item.active .pad-num { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .pad-body { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -215,9 +215,35 @@ input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; }
 
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes pulse { 50% { background: var(--mark); } }
+@keyframes sweep { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ---------- handwriting notepad: a teacher writing with a pen ---------- */
+.pad.hand .pad-body, .pad.hand .pad-problem-text { font-family: "Patrick Hand", var(--font); font-size: 1.3rem; line-height: 1.4; letter-spacing: 0.01em; }
+.pad.hand .pad-body .katex { font-size: 1.12em; }
+.ink .ghost { visibility: hidden; } /* reserves the line breaks so text doesn't reflow while being written */
+.pen { display: inline-block; vertical-align: -4px; margin-left: 2px; color: var(--text); transform-origin: 3px 20px; animation: scribble 240ms ease-in-out infinite alternate; }
+@keyframes scribble { from { transform: rotate(-7deg); } to { transform: rotate(5deg) translateY(-1px); } }
+
+.pad-problem { margin: 2px 0 12px; padding: 6px 12px 14px; color: var(--text); border-bottom: 2px dashed color-mix(in srgb, var(--border) 60%, transparent); }
+.pad-problem-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.pad-problem-text { margin: 4px 0 0; }
+.pad-problem img { display: block; max-width: 100%; max-height: 140px; margin-top: 8px; border-radius: 10px; border: 1px solid var(--edge); background: #fff; }
+
+/* equations are written left to right with the pen riding the edge */
+.wipe-wrap { position: relative; display: inline-block; }
+.wipe { display: inline-block; animation: wipe var(--write-ms) linear both; }
+.wipe-pen { position: absolute; top: 50%; left: 0; margin-top: -10px; animation: penmove var(--write-ms) linear both; }
+@keyframes wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes penmove { 0% { left: 0; opacity: 1; } 92% { opacity: 1; } 100% { left: 100%; opacity: 0; } }
+
+/* boxes are drawn as a wobbly outline */
+.pad-box.sketchy { position: relative; border: 0; padding: 9px 16px; }
+.sketch { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.sketch path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; }
+.pad-box.drawing .sketch path { stroke-dashoffset: 1; animation: drawbox 650ms ease-out forwards; }
+@keyframes drawbox { to { stroke-dashoffset: 0; } }
 
 /* ---------- fallbacks: keep every surface readable ---------- */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

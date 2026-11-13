@@ -142,6 +142,19 @@ ok(lessonReq?.body.strugglingWith?.[0] === "call stack", `lesson request struggl
 ok(lessonReq?.body.pinnedAnalogies?.some((p) => p.term === "amortized"), "lesson request carries pinned analogies");
 ok(await page.getByText(/Step 1 of 7/).isVisible(), "lesson plays from step 1 of 7");
 
+// natural voice + handwriting notepad
+ok(await page.getByLabel("Natural voice").isVisible(), "natural voice option shows when the server has a voice");
+ok(bodies.some((b) => b.url.endsWith("/api/speak") && b.body.text.length > 0), "narration is sent to /api/speak");
+await page.locator(".narration mark").first().waitFor({ timeout: 6000 });
+ok(true, "narration words highlight in step with the natural voice audio");
+ok(await page.locator(".pad.hand").count() === 1, "notepad uses handwriting style");
+ok((await page.locator(".pad-problem-text").textContent()).includes("factorial(4)"), "the problem is written at the top of the notepad");
+await page.locator("svg.pen").first().waitFor({ timeout: 3000 });
+ok(true, "a pen is drawn while text is being written");
+await page.waitForFunction(() => document.querySelector(".pad-item.active .ink") === null || document.querySelector(".pad-item.active .pen") === null, null, { timeout: 8000 });
+ok(await page.locator(".pad-item.active svg.sketch path").count() === 1, "box steps are drawn as a sketched outline");
+
+
 // keyboard control
 await page.getByLabel("Mute voice, read silently").check();
 await page.locator(".tutor").focus();
@@ -191,6 +204,20 @@ await page.getByRole("button", { name: "Ask", exact: true }).last().click();
 await page.locator(".msg.assistant", { hasText: "Short answer" }).waitFor({ timeout: 6000 });
 ok(bodies.find((b) => b.url.endsWith("/api/chat"))?.body.context.imageBase64?.length > 1000, "image chat includes the image");
 
+// ---- handwriting off, and natural-voice failure falls back
+await page.getByRole("tab", { name: "Tutor" }).click();
+await page.getByLabel("Handwriting style").uncheck();
+ok(await page.locator(".pad.hand").count() === 0, "handwriting can be switched off");
+await page.evaluate(async () => { const { prefs } = await chrome.storage.sync.get("prefs"); await chrome.storage.sync.set({ prefs: { ...prefs, muteVoice: false } }); }); // earlier steps muted the voice
+await page.reload();
+await page.route("**/api/speak", (r) => r.abort());
+await page.getByRole("tab", { name: "Tutor" }).click();
+await page.locator("#tutor-input").fill("Trace factorial(4) again");
+await page.getByRole("button", { name: "Start lesson" }).click();
+await page.getByText(/natural voice isn't responding/).waitFor({ timeout: 10000 });
+ok(await page.locator(".pad-item").count() >= 1, "voice failure falls back (notice shown) and the lesson still plays");
+await page.unroute("**/api/speak");
+
 // ---- clear
 await page.getByRole("tab", { name: "Read" }).click();
 await page.getByRole("button", { name: "Clear my history" }).click();
@@ -203,7 +230,9 @@ ok(!s.struggleLog || (s.struggleLog.terms.length === 0 && s.struggleLog.notSure.
 const mic = await page.evaluate(async () => { try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach((t) => t.stop()); return "ok"; } catch (e) { return e.name; } });
 console.log(`INFO  getUserMedia on extension origin (fake device): ${mic}; SpeechRecognition present: ${await page.evaluate(() => !!(window.SpeechRecognition || window.webkitSpeechRecognition))}; speechSynthesis present: ${await page.evaluate(() => "speechSynthesis" in window)}`);
 
-ok(errors.length === 0, `no console/page errors ${errors.length ? JSON.stringify(errors.slice(0, 3)) : ""}`);
+// The one expected console error is the speech request this test blocks on purpose.
+const unexpected = errors.filter((e) => !e.includes("net::ERR_FAILED"));
+ok(unexpected.length === 0, `no console/page errors ${unexpected.length ? JSON.stringify(unexpected.slice(0, 3)) : ""}`);
 await page.screenshot({ path: path.join(os.tmpdir(), "tether-e2e-final.png") });
 await ctx.close();
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nALL PASSED");
