@@ -5,7 +5,7 @@ export function ErrorBox({ message, onRetry, extra }: { message: string; onRetry
     <div className="error" role="alert">
       <p>{message}</p>
       <div className="row">
-        {onRetry && <button type="button" className="btn" onClick={onRetry}>Try again</button>}
+        {onRetry && <button type="button" className="btn small" onClick={onRetry}>Try again</button>}
         {extra}
       </div>
     </div>
@@ -17,7 +17,7 @@ export function Skeleton({ label }: { label: string }) {
     <div aria-busy="true" aria-live="polite">
       <span className="sr-only">{label}</span>
       {[0, 1, 2].map((i) => (
-        <div className="card skeleton" key={i} aria-hidden="true">
+        <div className="card skeleton" key={i} aria-hidden="true" style={{ "--i": i } as React.CSSProperties}>
           <div className="sk sk-h" /><div className="sk" /><div className="sk sk-s" />
         </div>
       ))}
@@ -31,8 +31,8 @@ export function useDialogFocus(onClose: () => void) {
   const from = useRef<Element | null>(null);
   useEffect(() => {
     from.current = document.activeElement;
-    ref.current?.focus();
-    return () => { if (from.current instanceof HTMLElement && document.contains(from.current)) from.current.focus(); };
+    ref.current?.focus({ preventScroll: true });
+    return () => { if (from.current instanceof HTMLElement && document.contains(from.current)) from.current.focus({ preventScroll: true }); };
   }, []);
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") { e.stopPropagation(); onClose(); }

@@ -44,6 +44,9 @@ page.on("request", (r) => { if (r.url().includes("/api/") && r.method() === "POS
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+// The composer folds away once there are results; "New passage" opens it again.
+const openComposer = async () => { const b = page.getByRole("button", { name: "New passage" }); if (await b.isVisible()) await b.click(); await page.locator("#read-input").waitFor({ state: "visible" }); };
+const openReading = async () => { await page.getByRole("button", { name: "Reading preferences" }).click(); await page.getByRole("dialog", { name: /Reading preferences/ }).waitFor(); };
 
 // Simulates Ctrl/Cmd+V: a paste event whose clipboard holds a PNG screenshot (and optionally text too).
 const pasteImage = (withText = "") => page.evaluate(async (withText) => {
@@ -82,6 +85,7 @@ ok(s.struggleLog.sessions.length === 1, "session saved");
 
 // pinned analogy is sent in next analysis
 bodies.length = 0;
+await openComposer();
 await page.getByRole("button", { name: "Break it down" }).click();
 await page.locator("article.card").first().waitFor();
 const az = bodies.find((b) => b.url.endsWith("/analyze-text"));
@@ -95,12 +99,21 @@ await page.getByLabel("Bionic reading (bold word starts)").check();
 await page.getByLabel("Warm Cream").check();
 ok(await page.locator("b.bionic").count() > 0, "bionic reading applies instantly");
 ok((await page.evaluate(() => getComputedStyle(document.body).fontFamily)).includes("OpenDyslexic"), "OpenDyslexic applied");
-ok((await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg"))).trim() === "#f8f1de", "tint applied via CSS variable");
+ok((await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent"))).trim() === "#8a4208", "tint applied via CSS variable");
 await page.keyboard.press("Escape");
 ok(await page.getByRole("dialog", { name: /Reading preferences/ }).count() === 0, "Escape closes settings");
 await page.reload();
 await page.waitForTimeout(400);
-ok((await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg"))).trim() === "#f8f1de", "preferences survive reload (sync storage)");
+ok((await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent"))).trim() === "#8a4208", "preferences survive reload (sync storage)");
+await page.getByRole("button", { name: "Reading preferences" }).click();
+await page.getByLabel("Night").check();
+ok(await page.evaluate(() => document.documentElement.dataset.theme) === "dark", "Night mode applies instantly");
+ok((await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--text"))).trim() === "#f6eedf", "dark palette follows the chosen tint");
+await page.getByLabel("Day").check();
+ok(await page.evaluate(() => document.documentElement.dataset.theme) === "light", "Day mode applies instantly");
+await page.getByLabel("Match my device").check();
+await page.getByLabel("Default", { exact: true }).check();
+await page.keyboard.press("Escape");
 ok(((await store("sync")).prefs ?? {}).dyslexicFont === true, "prefs stored in chrome.storage.sync");
 
 // ---- M3 highlight to send
@@ -115,6 +128,7 @@ await page.getByText(/PDF viewer/).first().waitFor({ timeout: 4000 });
 ok(true, "PDF viewer shows copy-paste message");
 
 // too long
+await openComposer();
 await page.locator("#read-input").fill("x ".repeat(3500));
 await page.getByRole("button", { name: "Break it down" }).click();
 ok(await page.getByRole("alert").getByText(/Select about 6,000/).isVisible(), "over-limit text asks user to select less");
@@ -132,6 +146,7 @@ ok(ex?.body.mediaType === "image/png" && ex.body.imageBase64.length > 100, "Ctrl
 ok((await page.locator("#read-input").inputValue()).includes("Photosynthesis converts"), "text read from the screenshot fills the box");
 ok(bodies.some((b) => b.url.endsWith("/api/analyze-text") && b.body.text.includes("Chloroplasts")), "the screenshot text is then broken into cards");
 ok((await store()).struggleLog.sessions.some((x) => x.url === "pasted screenshot"), "screenshot reading is saved as a session");
+await openComposer();
 await page.locator("#read-input").fill("");
 
 // ---- glossary
@@ -140,21 +155,24 @@ ok(await page.locator(".glossary li").count() >= 1, "glossary lists opened terms
 await page.keyboard.press("Escape");
 
 // ---- M6 seeded history + tutor
+await openReading();
 await page.getByRole("button", { name: "Load demo history" }).click();
 s = await store();
 ok(s.struggleLog.terms.reduce((n, t) => n + t.lookups, 0) === 12, "seed loads ~12 lookups");
 await page.getByRole("button", { name: "Clear my history" }).click();
 ok(await page.getByRole("button", { name: "Yes, clear it" }).isVisible(), "clear history asks for confirmation");
 await page.getByRole("button", { name: "Cancel" }).click();
+await page.keyboard.press("Escape");
 
 await page.reload();
 await page.getByRole("tab", { name: "Tutor" }).click();
+await page.getByText(/Starting from "call stack", since you flagged it twice this week/).first().waitFor({ timeout: 5000 }).catch(() => {});
 ok(await page.getByText(/Starting from "call stack", since you flagged it twice this week/).first().isVisible(), "tutor shows visible 'starting from' line");
 // read tab empty state shows re-entry
 await page.getByRole("tab", { name: "Read" }).click();
-ok(await page.getByText("Pick up where you left off").isVisible(), "re-entry card replaces empty state");
+ok(await page.getByRole("heading", { name: "Continue" }).isVisible(), "re-entry card replaces empty state");
 ok(await page.getByText("why does the base case matter").first().isVisible(), "re-entry shows open question");
-await page.getByRole("button", { name: "Work through it in Tutor Mode" }).click();
+await page.getByRole("button", { name: "Work on it in Tutor" }).click();
 await page.waitForTimeout(300); const tv = await page.locator("#tutor-input").inputValue(); ok(tv.includes("base case"), "re-entry hands the question to Tutor: " + JSON.stringify(tv));
 
 await page.locator("#tutor-input").fill("Trace factorial(4) written recursively");
@@ -174,7 +192,9 @@ ok(lessonReq?.body.pinnedAnalogies?.some((p) => p.term === "amortized"), "lesson
 ok(await page.getByText(/Step 1 of 7/).isVisible(), "lesson plays from step 1 of 7");
 
 // natural voice + handwriting notepad
+await page.getByRole("button", { name: "More options" }).click();
 ok(await page.getByLabel("Natural voice").isVisible(), "natural voice option shows when the server has a voice");
+await page.keyboard.press("Escape");
 ok(bodies.some((b) => b.url.endsWith("/api/speak") && b.body.text.length > 0), "narration is sent to /api/speak");
 await page.locator(".narration mark").first().waitFor({ timeout: 6000 });
 ok(true, "narration words highlight in step with the natural voice audio");
@@ -187,7 +207,10 @@ ok(await page.locator(".pad-item.active svg.sketch path").count() === 1, "box st
 
 
 // keyboard control
+await page.getByRole("button", { name: "More options" }).click();
 await page.getByLabel("Mute voice, read silently").check();
+await page.keyboard.press("Escape");
+ok(await page.getByLabel("Mute voice, read silently").count() === 0, "Escape closes the More menu without stopping the lesson");
 await page.locator(".tutor").focus();
 await page.keyboard.press("Space");
 ok(await page.getByText(/paused/).isVisible(), "Space pauses");
@@ -208,7 +231,7 @@ ok(s.struggleLog.notSure.length === 3, "'Not sure' writes to struggle log");
 ok(bodies.some((b) => b.url.endsWith("/lesson-step") && b.body.reason === "not sure"), "'Not sure' calls /api/lesson-step");
 await page.getByRole("button", { name: "Pause" }).click();
 // interrupt by clicking the pad
-await page.getByRole("button", { name: "Ask about this step" }).first().click();
+await page.getByRole("button", { name: "Ask about this step", exact: true }).click();
 ok(await page.getByRole("heading", { name: /Ask about step/ }).isVisible(), "interrupt opens ask panel");
 bodies.length = 0;
 await page.locator("#ask-q").fill("why is it needed?");
@@ -219,7 +242,7 @@ ok(chatReq?.body.context.type === "lesson-step" && chatReq.body.context.currentS
 await page.getByRole("button", { name: "Explain that step differently" }).click();
 await page.waitForTimeout(500);
 ok(bodies.some((b) => b.url.endsWith("/lesson-step") && b.body.reason === "explain differently"), "'Explain differently' regenerates just that step");
-await page.getByRole("button", { name: "Ask about this step" }).first().click();
+await page.getByRole("button", { name: "Ask about this step", exact: true }).click();
 await page.getByRole("button", { name: "Got it, continue" }).click();
 ok(await page.getByRole("button", { name: "Pause" }).isVisible(), "'Got it, continue' resumes playback");
 await page.keyboard.press("Escape");
@@ -235,9 +258,99 @@ await page.getByRole("button", { name: "Ask", exact: true }).last().click();
 await page.locator(".msg.assistant", { hasText: "Short answer" }).waitFor({ timeout: 6000 });
 ok(bodies.find((b) => b.url.endsWith("/api/chat"))?.body.context.imageBase64?.length > 1000, "image chat includes the image");
 
+
+// ---- Bubble: the toolbar icon draws a glass bubble on normal pages (clicking the real icon can't be automated,
+// so we send the same message the background worker sends).
+await ctx.route("https://article.test/**", (r) => r.fulfill({ contentType: "text/html", body: "<title>Test article</title><body style='font:16px sans-serif'><h1>A long article</h1><p>" + "Dense text about amortized analysis. ".repeat(80) + "</p>" }));
+const art = await ctx.newPage();
+const artErrors = [];
+art.on("pageerror", (e) => artErrors.push(e.message));
+art.on("console", (m) => { if (m.type() === "error") artErrors.push(m.text()); });
+await art.goto("https://article.test/post");
+await art.bringToFront();
+// Only the article tab has a content script, so only it answers.
+const toggle = (type) => sw.evaluate(async (t) => { for (const tab of await chrome.tabs.query({})) await chrome.tabs.sendMessage(tab.id, { type: t }).catch(() => {}); }, type);
+// The bubble is hit-testable only while visible (a closed shadow root retargets hits to its host).
+const bubbleHit = () => art.evaluate(() => document.elementFromPoint(innerWidth - 100, 120)?.id === "tether-root");
+const bubbleFrame = () => art.frames().find((f) => f.url().includes("sidepanel.html?mode=bubble"));
+ok(!bubbleFrame(), "no bubble until the icon is clicked");
+await toggle("tether:toggle");
+await new Promise((r) => setTimeout(r, 900));
+const bf = bubbleFrame();
+ok(!!bf, "toggle injects the bubble iframe");
+ok(await bf.locator("h1", { hasText: "Tether" }).isVisible(), "bubble shows the Tether app");
+ok(await bf.evaluate(() => document.documentElement.classList.contains("bubble")), "app knows it is in bubble mode");
+ok(await art.evaluate(() => !!document.getElementById("tether-root") && document.body.children.length === 2), "page content is untouched (only a host element is added to <html>)");
+ok(await bubbleHit(), "bubble is on screen top-right");
+const SHOTS = "/private/tmp/claude-501/-Users-raiyanhaque-Desktop-Projects-Tether/93ba7eaf-bf5f-4ffe-a028-3cc6eb8aa866/scratchpad";
+const setPrefs = (patch) => bf.evaluate((p) => chrome.storage.sync.get("prefs").then((r) => chrome.storage.sync.set({ prefs: { ...(r.prefs ?? {}), ...p } })), patch);
+const settle = (ms = 700) => new Promise((r) => setTimeout(r, ms));
+await art.setViewportSize({ width: 1100, height: 760 });
+await setPrefs({ tint: "default", theme: "light", dyslexicFont: false, bionic: false });
+await settle(500);
+await art.screenshot({ path: SHOTS + "/light-empty.png" });
+await bf.getByRole("button", { name: "Try an example" }).first().click();
+await bf.locator("article.card").first().waitFor({ timeout: 8000 });
+await settle();
+await art.screenshot({ path: SHOTS + "/light-read.png" });
+await bf.locator("button.term").first().click();
+await settle(450);
+await art.screenshot({ path: SHOTS + "/light-popover.png" });
+await art.keyboard.press("Escape");
+await settle(300);
+await bf.getByRole("button", { name: "Glossary" }).click();
+await settle(450);
+await art.screenshot({ path: SHOTS + "/light-sheet.png" });
+await art.keyboard.press("Escape");
+await setPrefs({ theme: "dark" });
+await settle(500);
+ok(await bf.evaluate(() => document.documentElement.dataset.theme) === "dark", "bubble switches to night mode");
+await art.screenshot({ path: SHOTS + "/dark-read.png" });
+await bf.getByRole("button", { name: "Reading preferences" }).click();
+await settle(450);
+await art.screenshot({ path: SHOTS + "/dark-sheet.png" });
+await art.keyboard.press("Escape");
+await bf.getByRole("tab", { name: "Tutor" }).click();
+await bf.getByRole("button", { name: "Try an example" }).first().click();
+await bf.getByRole("button", { name: "Start lesson" }).click();
+await bf.locator(".pad-item").first().waitFor({ timeout: 8000 });
+ok(await bubbleHit(), "bubble open before the More menu");
+await bf.getByRole("button", { name: "More options" }).click();
+ok(await bubbleHit(), "bubble open with the More menu showing");
+await bf.getByLabel("Mute voice, read silently").check();
+ok(await bf.getByLabel("Mute voice, read silently").isVisible(), "More menu stays open while you use it");
+console.log("INFO  focus before Esc:", await bf.evaluate(() => `${document.activeElement?.tagName}.${document.activeElement?.className}`), "| page focus:", await art.evaluate(() => document.activeElement?.tagName));
+await art.keyboard.press("Escape");
+await settle(500);
+ok(await bubbleHit(), "Esc in the More menu closes the menu, not the bubble");
+await bf.getByRole("button", { name: "Ask about this step", exact: true }).click();
+await settle(600);
+await art.screenshot({ path: SHOTS + "/dark-ask.png" });
+await bf.getByRole("button", { name: "Got it, continue" }).click();
+await settle(900);
+await art.screenshot({ path: SHOTS + "/dark-tutor.png" });
+await setPrefs({ theme: "light", tint: "cream" });
+await settle(500);
+await art.screenshot({ path: SHOTS + "/cream-tutor.png" });
+await setPrefs({ theme: "light", tint: "default" });
+await bf.getByRole("tab", { name: "Read" }).click();
+await bf.getByRole("button", { name: "Close Tether" }).click();
+await new Promise((r) => setTimeout(r, 400));
+ok(!(await bubbleHit()), "Close button hides the bubble");
+await toggle("tether:toggle");
+await new Promise((r) => setTimeout(r, 500));
+ok(await bubbleHit(), "toggle brings the same bubble back");
+await art.keyboard.press("Escape");
+await new Promise((r) => setTimeout(r, 400));
+ok(!(await bubbleHit()), "Escape on the page closes the bubble");
+ok(artErrors.length === 0, "no errors on the host page " + JSON.stringify(artErrors.slice(0, 2)));
+await art.close();
+await page.bringToFront();
 // ---- handwriting off, and natural-voice failure falls back
 await page.getByRole("tab", { name: "Tutor" }).click();
+await page.getByRole("button", { name: "More options" }).click();
 await page.getByLabel("Handwriting style").uncheck();
+await page.keyboard.press("Escape");
 ok(await page.locator(".pad.hand").count() === 0, "handwriting can be switched off");
 await page.evaluate(async () => { const { prefs } = await chrome.storage.sync.get("prefs"); await chrome.storage.sync.set({ prefs: { ...prefs, muteVoice: false } }); }); // earlier steps muted the voice
 await page.reload();
@@ -251,6 +364,7 @@ await page.unroute("**/api/speak");
 
 // ---- clear
 await page.getByRole("tab", { name: "Read" }).click();
+await openReading();
 await page.getByRole("button", { name: "Clear my history" }).click();
 await page.getByRole("button", { name: "Yes, clear it" }).click();
 await page.waitForTimeout(300);

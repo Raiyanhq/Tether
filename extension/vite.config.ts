@@ -30,6 +30,8 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       chunkSizeWarningLimit: 1200, // KaTeX + React; loaded locally from the extension, not over the network
       rollupOptions: {
+        // zod ships annotations Rollup can't place; they're harmless, so keep the build output clean.
+        onwarn(w, warn) { if (w.code === "INVALID_ANNOTATION" && /node_modules\/zod\//.test(w.id ?? "")) return; warn(w); },
         input: {
           sidepanel: resolve(__dirname, "sidepanel.html"),
           background: resolve(__dirname, "src/background.ts"),
