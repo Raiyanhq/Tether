@@ -1,0 +1,51 @@
+{
+  "title": "How recursion unwinds: factorial of 4",
+  "goal": "Trace a recursive function by hand and see how the call stack builds up and unwinds.",
+  "steps": [
+    {
+      "id": "s1",
+      "topic": "call stack",
+      "narration": "You flagged the call stack as shaky, so we will start there. Think of it as a pile of sticky notes. The newest note goes on top, and you always finish the top note first.",
+      "visual": { "kind": "box", "content": "Call stack = pile of notes, newest on top", "refs": [] }
+    },
+    {
+      "id": "s2",
+      "topic": "recursive function",
+      "narration": "Now the problem. Factorial of 4 means 4 times 3 times 2 times 1. A recursive function solves it by asking a smaller version of itself.",
+      "visual": { "kind": "math", "content": "n! = n \\times (n-1)!", "refs": [] }
+    },
+    {
+      "id": "s3",
+      "topic": "base case",
+      "narration": "A smaller question every time has to stop somewhere. That stopping point is the base case. For factorial, one factorial is just one.",
+      "visual": { "kind": "math", "content": "1! = 1", "refs": [] },
+      "checkpoint": "Why do we need a base case at all?"
+    },
+    {
+      "id": "s4",
+      "topic": "call stack",
+      "narration": "Let's build the stack. We call factorial of 4. It cannot finish yet, so it waits for factorial of 3, which waits for 2, which waits for 1.",
+      "visual": { "kind": "text", "content": "f(4) waits on f(3) waits on f(2) waits on f(1)", "refs": [] }
+    },
+    {
+      "id": "s5",
+      "topic": "call stack",
+      "narration": "Here is the base case answering. f of 1 returns 1. That is the top note, so it gets finished first.",
+      "visual": { "kind": "highlight", "content": "", "refs": ["s3"] },
+      "checkpoint": "Which call finishes first, f(4) or f(1)?"
+    },
+    {
+      "id": "s6",
+      "topic": "unwinding",
+      "narration": "Now the stack unwinds. f of 2 is 2 times 1, which is 2. Then f of 3 is 3 times 2, which is 6.",
+      "visual": { "kind": "arrow", "content": "answers flow back down", "refs": ["s4"] }
+    },
+    {
+      "id": "s7",
+      "topic": "answer",
+      "narration": "Finally f of 4 is 4 times 6. The answer is 24.",
+      "visual": { "kind": "math", "content": "4! = 4 \\times 6 = 24", "refs": [] }
+    }
+  ],
+  "commonMistake": "Forgetting the base case, so the function keeps calling itself and the stack never stops growing."
+}

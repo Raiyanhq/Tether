@@ -1,109 +1,109 @@
 # Tether
 
-A Chrome side-panel extension for neurodivergent learners (ADHD, dyslexia, executive dysfunction, visual processing sensitivity).
+A Chrome side-panel extension for neurodivergent learners. It breaks dense text into small cards, tutors you through a problem on a notepad, and, unlike other study tools, **remembers why you got stuck** (the struggle log).
 
-Most AI study tools explain the paragraph in front of you. Tether also **remembers why you were stuck in the first place**.
-
-## The three layers
-
-| Layer | What it does |
-| --- | --- |
-| **1. Read** | Highlight a confusing passage on any page (or paste one in). The panel returns 3–6 chunk cards: a plain heading, a one-sentence takeaway, and expandable detail. Jargon is underlined, and clicking a term gives a plain definition, an everyday analogy and why it matters here. Font, spacing, tint and bionic reading are adjustable. |
-| **2. Tutor** | Tether talks you through a problem in 4–8 steps while writing the working onto a notepad canvas. Interrupt any step by voice or click, ask about it, and resume. Checkpoints ask whether you actually followed. |
-| **3. Memory** | Everything you look up or mark "not sure" is logged locally. The log keeps the glossary across documents, keeps analogies consistent across sessions, starts Tutor Mode at the prerequisite you are actually weak on, and shows a re-entry card instead of a blank panel. **This layer is the differentiator. It does not get cut.** |
-
-Problems the UX stays anchored to: cognitive overload on dense text, working-memory decay across a long document, opaque diagrams and slides, visual crowding and glare.
-
-**Principle:** behaviour is user-controlled. The extension never rewrites or modifies the host page on its own.
-
-## Stack
-
-- Chrome Extension, Manifest V3, `chrome.sidePanel` API. Chrome only.
-- TypeScript + React + Vite, multi-entry (side panel page, background service worker, content script). Builds with `npm run build` into `dist/`.
-- Small Node + Express proxy that holds the Anthropic API key. **The key never goes in extension code.**
-- Model from env var `ANTHROPIC_MODEL` (default `claude-sonnet-5-5`). Structured JSON for analysis and lessons, streaming for chat.
-- KaTeX for math. Plain CSS variables for styling, with no UI library, so theming is trivial.
-
-## Repo layout
+- **Read**: highlight or paste a passage, or paste a screenshot with Ctrl/Cmd+V and Tether reads the text out of it, then gets 3–6 chunk cards, underlined jargon with plain definitions and analogies.
+- **Tutor**: a 4–8 step lesson, spoken aloud while the working is written on a notepad in a handwriting style, with a pen that writes the problem and each step as it is spoken. Paste a screenshot of the problem with Ctrl/Cmd+V to work from it. Interrupt any step by voice, click or keyboard. The voice can be a natural ElevenLabs voice, with the browser's built-in voice as the fallback.
+- **Memory**: everything you look up or mark "not sure" is stored locally and used to keep analogies consistent, start lessons at the weak prerequisite, and re-orient you when you come back.
 
 ```
-/extension   Vite + React + TS, MV3
-/server      proxy + prompt templates
-/seed        demo seed data for the struggle log
-/README.md
+/extension   Chrome MV3 extension (Vite + React + TypeScript)
+/server      Express proxy that holds the model API key + prompt templates (Gemini by default)
+/seed        demo struggle log and offline demo lesson
 ```
 
-## API contracts
-
-Every response is validated against a zod schema before rendering, with one retry on malformed JSON.
-
-| Endpoint | Purpose |
-| --- | --- |
-| `POST /api/analyze-text` | `{ text, knownTerms, pinnedAnalogies }` → `{ overview, chunks[], terms[] }`. Text capped at ~6000 chars. Max 8 terms, 3–6 chunks, about grade 8 reading level. Pinned analogies are reused. |
-| `POST /api/lesson` | `{ problem, imageBase64?, mediaType?, strugglingWith }` → `{ title, goal, steps[4–8], commonMistake }`. Each step has `narration`, `visual {kind, content, refs}` and an optional `checkpoint`. |
-| `POST /api/lesson-step` | Regenerates one step at a simpler level ("not sure" or "explain differently"). |
-| `POST /api/analyze-image` | `{ imageBase64, mediaType }` → `{ summary, components[] }`. Says so if the image is unreadable. |
-| `POST /api/chat` (streaming) | `{ messages, context }`. Short answers, supports reframing ("explain like a water pipe system"). |
-
-## The struggle log
-
-One store in `chrome.storage.local`, never sent anywhere except as prompt context for the current request.
-
-```jsonc
-{
-  "terms":    [{ "term", "lookups", "lastSeen", "sources": [urls], "pinnedAnalogy" }],
-  "notSure":  [{ "topic", "stepId", "lessonTitle", "at" }],
-  "sessions": [{ "url", "title", "lastChunkRead", "openQuestion", "at" }]
-}
-```
-
-Four features read from it, and each must visibly work before shipping:
-
-1. **Glossary drawer.** Every opened term is added, deduplicated and sorted by lookup count. It persists across pages and can be cleared.
-2. **Analogy consistency.** A thumbs-up pins the analogy, and pinned analogies are passed into every later `/api/analyze-text` and `/api/lesson` call.
-3. **Prerequisite start.** Tutor Mode passes the top `notSure` topics and most-looked-up terms as `strugglingWith`, and the UI shows a visible line such as *"Starting from call stack, since you flagged it twice last week."*
-4. **Re-entry card.** The empty state shows your last session: where you stopped, the takeaway you reached, your open question, and one small next action.
-
-## Milestones
-
-Built in order, one at a time, each tested before the next starts.
-
-- [x] **M1 – Skeleton.** MV3 manifest, side panel opens on toolbar click, React app with header, text input and results area, background worker and content script wired up.
-- [ ] **M2 – Backend and text analysis.** Proxy with `/api/analyze-text`, CORS locked to the extension origin, key from env, rate limit. Chunk cards with expandable details. Friendly error states. Target: a dense paragraph becomes cards in under ~8s.
-- [ ] **M3 – Highlight to send.** Right-click "Send to Tether" on selected text. Chrome's built-in PDF viewer blocks content scripts, so that case shows a copy-paste message instead.
-- [ ] **M4 – Terms, glossary, struggle log.** Underlined terms with a popover (definition, analogy, why it matters, thumbs-up to pin). Struggle log store and glossary drawer.
-- [ ] **M5 – Tutor Mode.** 4–8 narrated steps drawn on a notepad canvas, with interrupt by voice or click, resume, checkpoints, and full keyboard operation.
-- [ ] **M6 – Memory tie-in and re-entry.** `strugglingWith` passed to lessons, the visible "starting from X" line, and the re-entry card.
-- [ ] **M7 – Sensory toolkit.** Local OpenDyslexic font, line-height and letter-spacing sliders, tint presets (Default, Warm Cream, Muted Slate), bionic reading. Persisted in `chrome.storage.sync` and labelled as reading preferences, not treatments.
-- [ ] **M8 – Image clarifier.** Drop or paste an image, client-side resize to 1600px max, component breakdown, chat about the image.
-- [ ] **M9 – Polish.** "Try an example" button, loading skeletons, 4.5:1 contrast in every tint, visible focus rings, full README and demo script.
-
-## Setup (current state: M1)
+## Quick start (local)
 
 Requires Node 20+ and Chrome.
+
+### 1. Server
+
+```bash
+cd server
+npm install
+cp .env.example .env        # then put your key in GEMINI_API_KEY
+npm run dev                 # http://localhost:8787
+```
+
+No key yet? `npm run start:mock` serves canned responses so the whole UI works offline.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `LLM_PROVIDER` | auto | `gemini` or `anthropic`. If unset, whichever key is present is used (Gemini first). |
+| `GEMINI_API_KEY` | – | Required for Gemini unless `MOCK_LLM=1`. Never goes in extension code. |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Any Gemini model id with image input and JSON output. `gemini-3.5-flash-lite` answers in about 2 to 3 seconds. `gemini-3.6-flash` took about 20 seconds in testing because it thinks first. |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | – / `claude-sonnet-5-5` | Optional alternative provider. |
+| `PORT` | `8787` | |
+| `ALLOWED_ORIGINS` | the extension's origin | Comma-separated. CORS is locked to these. The extension has a fixed id (see below), so the default works. |
+| `RATE_LIMIT_PER_MIN` | `60` | Per client IP. |
+| `TRUST_PROXY` | `0` | Set `1` behind a reverse proxy or PaaS. |
+| `ELEVENLABS_API_KEY` | – | Optional. Turns on the natural voice. Without it Tutor Mode uses the browser's built-in voice. |
+| `ELEVENLABS_VOICE_ID` | `EXAVITQu4vr4xnSDxMaL` (Sarah) | Free plans can only use premade voices through the API (Sarah, Adam `pNInz6obpgDQGcFmaJgB`, Antoni `ErXwobaYiN019PkySvjV`). Library voices need a paid plan. |
+| `ELEVENLABS_MODEL` | `eleven_flash_v2_5` | Low-latency model. `eleven_v4` is higher quality but slower. |
+| `MOCK_LLM` | – | `1` = canned responses and a silent mock voice, no keys. |
+
+Check the real model end to end: `npm run smoke`.
+
+### 2. Extension
 
 ```bash
 cd extension
 npm install
-npm run build
+npm run build:demo          # build with the "Load demo history" button
 ```
 
-Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `extension/dist`. Click the Tether toolbar icon to open the side panel.
+Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, pick `extension/dist`. Click the Tether toolbar icon to open the side panel. The extension id is fixed (`dncappfhfginimfcnmcndijoophkdcpl`, from the `key` in the manifest) so the server's CORS lock is deterministic.
 
-### Server env vars (from M2)
+`npm run build` makes the production build, without the demo button.
 
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `ANTHROPIC_API_KEY` | none | Required. Server-side only. |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5-5` | |
-| `PORT` | `8787` | |
-| `ALLOWED_ORIGINS` | the extension origin | CORS lock. |
+### Tests
+
+```bash
+cd server && npm test            # proxy, validation, retry, SSE, Gemini and Anthropic backends against fake endpoints
+cd extension && npm test         # struggle log, seed, WCAG contrast for every tint, prefs
+cd extension && npm run e2e      # drives a separate build in real Chromium against its own mock server on :8788 (safe to run while your dev server is up)
+```
+
+## Going live
+
+1. Deploy `/server` anywhere that runs Node or Docker (a `Dockerfile` is included). Set `GEMINI_API_KEY`, and `TRUST_PROXY=1` if behind a proxy. HTTPS is required.
+2. Rebuild the extension pointing at it: `VITE_SERVER_URL=https://your-host npm run build`. The build also rewrites `host_permissions` in the manifest.
+3. The server keeps no database and logs no user text: it forwards and forgets.
+
+## Demo script (3 minutes)
+
+Setup: server running, extension loaded from `npm run build:demo`, open any normal article in a tab.
+
+1. **(0:00) The problem.** "Dense text, and you forget why you were stuck." Click **Clear my history** to show a cold start, then **Load demo history**: a week of one student's struggles.
+2. **(0:20) Re-entry.** Reload the panel. The empty state is a re-entry card: where you stopped, what you'd reached, your open question. Not a blank box.
+3. **(0:40) Read.** Click **Try an example**. Cards appear. Open **More detail**. Click an underlined term: definition, analogy, why it matters. Press 👍: the analogy is pinned. Open **Glossary**: terms persist across pages.
+4. **(1:10) Consistency.** Click **Break it down** again: the pinned analogy is reused. Highlight text on the article, right-click, **Send to Tether**.
+5. **(1:30) Tutor.** On the **Tutor** tab note the line *"Starting from 'call stack', since you flagged it twice this week."* Click **Try an example**, then **Start lesson**. The lesson opens on the weak prerequisite and draws onto the notepad.
+6. **(2:00) Interrupt.** Click the notepad (or press Space), ask "why do we need that?", hear the answer, press **Got it, continue**. At the checkpoint press **Not sure**: the step is simplified and the topic is added to the log.
+7. **(2:30) Keyboard + sensory.** Space pauses, ← → change step, Esc stops. Open **Reading**: tint, OpenDyslexic, line spacing, bionic. Mention these are preferences, not treatments.
+8. **(2:50) Privacy.** The log stays on the device. **Clear my history** is always visible.
+
+Fallbacks: if the venue wifi dies, the demo lesson plays from a built-in copy, and the last lesson per problem is cached.
+
+## Privacy
+
+- The struggle log lives in `chrome.storage.local`. It is sent to the server only as prompt context for the current request.
+- The server never logs or stores request text. Screenshots are resized in the browser, sent only for that one request, and not kept.
+- If you turn on the natural voice, the lines Tether speaks (lesson narration and answers to your questions) go through your server to ElevenLabs to be turned into audio. Your struggle log and the pages you read are not sent. Untick **Natural voice** in the Tutor controls, or leave `ELEVENLABS_API_KEY` unset, to keep all speech on the device.
+- No accounts, no database, no analytics.
+- The extension never modifies the host page. The content script only reads the current selection when the panel asks.
+
+## Accessibility notes
+
+- Everything voice does can be done by keyboard, and narration text is always on screen. **Mute voice, read silently** is in the Tutor controls.
+- Space = pause/play, ← → = previous/next step, Esc = stop.
+- `prefers-reduced-motion` disables all animation.
+- Every tint preset meets 4.5:1 for text (checked by a unit test).
+- OpenDyslexic and bionic reading are offered as reading preferences. There is no solid evidence they improve comprehension or speed, though some people prefer them, and the UI doesn't claim otherwise.
 
 ## Known limitations
 
+- Chrome's built-in PDF viewer blocks content scripts, so highlight-to-send shows a copy-and-paste message instead.
+- Voice input (push-to-talk, hands-free) depends on Chrome allowing microphone access from a side panel. If blocked, the panel offers a one-click tab to grant it, and typing always works. Hands-free barge-in relies on echo cancellation; use headphones for the best result.
+- The natural voice uses ElevenLabs credits per character. Tether caches each spoken line for the session and prefetches the next step, so replays and pauses cost nothing extra.
 - Chrome only.
-- Chrome's built-in PDF viewer blocks content scripts, so highlight-to-send falls back to copy-paste there.
-
-## Demo script
-
-Written in M9. The finished version lives on the `feature/tether-build` branch.

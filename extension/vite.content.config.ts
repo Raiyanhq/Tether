@@ -5,7 +5,7 @@ import { resolve } from "path";
 export default defineConfig({
   publicDir: false,
   build: {
-    outDir: "dist",
+    outDir: process.env.OUT_DIR || "dist",
     emptyOutDir: false,
     lib: {
       entry: resolve(__dirname, "src/content.ts"),
