@@ -5,6 +5,7 @@ import { prepareImage, svgToBlob, type PreparedImage } from "../lib/image";
 import type { ImageAnalysis } from "../lib/schemas";
 import { ChatBox } from "./components/ChatBox";
 import { ErrorBox, Skeleton } from "./components/Common";
+import { UploadIcon } from "./components/Icons";
 
 export function ImageTab({ active }: { active: boolean }) {
   const [img, setImg] = useState<PreparedImage | null>(null);
@@ -41,22 +42,25 @@ export function ImageTab({ active }: { active: boolean }) {
   return (
     <div>
       <div
-        className={`drop${drag ? " over" : ""}`}
+        className={`drop${drag ? " over" : ""}${img ? " compact" : ""}`}
         role="button"
         tabIndex={0}
-        aria-label="Add an image: drop it here, paste it, or press Enter to choose a file"
+        aria-label="Add an image. Drop it here, paste it, or press Enter to choose a file."
         onClick={() => fileRef.current?.click()}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileRef.current?.click(); } }}
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}
         onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) void load(f); }}
       >
-        Drop a diagram or slide here, paste one (Ctrl/Cmd+V), or press Enter to pick a file.
+        <UploadIcon />
+        <span>{img ? "Choose another image" : "Drop, paste or choose an image"}</span>
       </div>
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only-file" tabIndex={-1} onChange={(e) => { const f = e.target.files?.[0]; if (f) void load(f); e.target.value = ""; }} />
-      <div className="row">
-        <button type="button" className="btn" onClick={async () => void load(await svgToBlob(DEMO_DIAGRAM_SVG))}>Try an example diagram</button>
-      </div>
+      {!img && (
+        <p className="center-row">
+          <button type="button" className="btn" aria-label="Try an example diagram" onClick={async () => void load(await svgToBlob(DEMO_DIAGRAM_SVG))}>Example</button>
+        </p>
+      )}
 
       {img && <img className="preview" src={img.dataUrl} alt="The image you added" />}
       {status === "loading" && <Skeleton label="Looking at the image…" />}
@@ -67,16 +71,15 @@ export function ImageTab({ active }: { active: boolean }) {
           <section aria-label="Breakdown">
             <p className="overview">{result.summary}</p>
             {result.components.map((c, i) => (
-              <article className="card" key={i}>
+              <article className="card" key={i} style={{ "--i": i } as React.CSSProperties}>
                 <h2 className="h2">{c.label}</h2>
-                <p>{c.explanation}</p>
+                <p className="takeaway">{c.explanation}</p>
               </article>
             ))}
           </section>
           <ChatBox
             context={{ type: "image", summary: result.summary, components: result.components, imageBase64: img.base64, mediaType: img.mediaType }}
             label="Ask about this image"
-            placeholder='e.g. "what does arrow B mean?"'
           />
         </>
       )}

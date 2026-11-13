@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clearLog, emptyLog, loadLog, saveLog, type StruggleLog } from "../lib/log";
 import { onItemChange } from "../lib/storage";
-import { applyPrefs, DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from "../lib/prefs";
+import { IS_BUBBLE } from "../lib/config";
+import { applyPrefs, DEFAULT_PREFS, glassMessage, loadPrefs, savePrefs, type Prefs } from "../lib/prefs";
 import { chatStream, type ChatContext, type ChatMessage } from "../lib/api";
 
 export function useLog() {
@@ -33,19 +34,43 @@ export function useLog() {
 
 export function usePrefs() {
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
+  const ref = useRef(prefs);
+
+  /** Apply to the app and, in the bubble, tell the page-side glass layer to match. */
+  const apply = useCallback((p: Prefs, fade = false) => {
+    const root = document.documentElement;
+    if (fade) { // brief colour cross-fade, only for deliberate tint / theme changes
+      root.classList.add("theme-fade");
+      setTimeout(() => root.classList.remove("theme-fade"), 300);
+    }
+    applyPrefs(p);
+    if (IS_BUBBLE) window.parent.postMessage(glassMessage(p), "*");
+  }, []);
+
   useEffect(() => {
-    applyPrefs(DEFAULT_PREFS);
-    loadPrefs().then((p) => { setPrefs(p); applyPrefs(p); });
-    return onItemChange<Prefs>("sync", "prefs", (v) => { if (v) { const p = { ...DEFAULT_PREFS, ...v }; setPrefs(p); applyPrefs(p); } });
-  }, []);
-  const update = useCallback((patch: Partial<Prefs>) => {
-    setPrefs((cur) => {
-      const next = { ...cur, ...patch };
-      applyPrefs(next);
-      void savePrefs(next);
-      return next;
+    apply(DEFAULT_PREFS);
+    loadPrefs().then((p) => { ref.current = p; setPrefs(p); apply(p); });
+    const stop = onItemChange<Prefs>("sync", "prefs", (v) => {
+      if (!v) return;
+      const p = { ...DEFAULT_PREFS, ...v };
+      const changed = p.theme !== ref.current.theme || p.tint !== ref.current.tint;
+      ref.current = p; setPrefs(p); apply(p, changed);
     });
-  }, []);
+    // "System" theme follows the OS as it changes (e.g. automatic day/night switching).
+    const mq = typeof matchMedia !== "undefined" ? matchMedia("(prefers-color-scheme: dark)") : null;
+    const onScheme = () => apply(ref.current, true);
+    mq?.addEventListener("change", onScheme);
+    return () => { stop(); mq?.removeEventListener("change", onScheme); };
+  }, [apply]);
+
+  const update = useCallback((patch: Partial<Prefs>) => {
+    const cur = ref.current;
+    const next = { ...cur, ...patch };
+    ref.current = next;
+    setPrefs(next);
+    apply(next, next.theme !== cur.theme || next.tint !== cur.tint);
+    void savePrefs(next);
+  }, [apply]);
   return { prefs, update };
 }
 

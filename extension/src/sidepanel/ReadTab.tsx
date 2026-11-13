@@ -6,6 +6,7 @@ import { knownTerms, latestSession, pinnedAnalogies, recordLookup, saveSession, 
 import type { Analysis, Term } from "../lib/schemas";
 import { ChatBox } from "./components/ChatBox";
 import { ErrorBox, Skeleton } from "./components/Common";
+import { ChevronIcon, SelectionIcon } from "./components/Icons";
 import { ReEntryCard } from "./components/ReEntryCard";
 import { RichText } from "./components/RichText";
 import { TermPopover } from "./components/TermPopover";
@@ -23,7 +24,7 @@ interface Props {
 
 interface Source { url: string; title: string }
 const PASTED: Source = { url: "pasted text", title: "Pasted text" };
-const PDF_MESSAGE = "Chrome's built-in PDF viewer doesn't let extensions read it. Copy the passage and paste it into the box above.";
+const PDF_MESSAGE = "Chrome's built-in PDF viewer doesn't let extensions read it. Copy the passage and paste it here.";
 
 export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }: Props) {
   const [text, setText] = useState("");
@@ -78,11 +79,11 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (!tab?.id) throw new Error("no tab");
       const r = (await chrome.tabs.sendMessage(tab.id, { type: "tether:getSelection" })) as { text: string; url: string; title: string } | undefined;
-      if (!r?.text.trim()) { setNotice("Nothing is highlighted on the page. Highlight some text first, then try again."); return; }
+      if (!r?.text.trim()) { setNotice("Nothing is highlighted. Select some text on the page first."); return; }
       setText(r.text);
       void run(r.text, { url: r.url, title: r.title });
     } catch {
-      setNotice(PDF_MESSAGE.replace("Chrome's built-in PDF viewer doesn't", "Tether can't read this page (for example Chrome's PDF viewer or a Chrome settings page), because it doesn't"));
+      setNotice("Tether can't read this page. Copy the passage and paste it here.");
     }
   };
 
@@ -116,20 +117,35 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
   const pinnedFor = (t: Term) => log.terms.find((x) => x.term.toLowerCase() === t.term.toLowerCase())?.pinnedAnalogy === t.analogy;
   const recent = latestSession(log);
 
+  const composing = status !== "done";
+  const showCount = text.length > MAX_TEXT_CHARS * 0.8;
+
   return (
     <div>
-      <label htmlFor="read-input" className="label">Paste a confusing passage, or highlight text on a page</label>
-      <textarea id="read-input" value={text} onChange={(e) => setText(e.target.value)} rows={5} placeholder="Paste text here." />
-      <div className="row">
-        <button type="button" className="btn primary" disabled={!text.trim() || status === "loading"} onClick={() => run(text, PASTED)}>
-          Break it down
-        </button>
-        <button type="button" className="btn" onClick={() => { setText(DEMO_PARAGRAPH); void run(DEMO_PARAGRAPH, { url: "demo: amortized analysis", title: "Amortized analysis (example)" }); }}>
-          Try an example
-        </button>
-        <button type="button" className="btn" onClick={grabSelection}>Use text highlighted on the page</button>
+      {/* The composer folds away once there are results, and opens again with "New passage". */}
+      <div className={`fold${composing ? " open" : ""}`}>
+        <div className="fold-inner">
+          <div className="composer">
+            <label htmlFor="read-input" className="sr-only">Passage to break down</label>
+            <textarea id="read-input" value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="Paste or highlight text" />
+            <div className="tools">
+              <button type="button" className="btn icon" title="Use selection" aria-label="Use text highlighted on the page" onClick={grabSelection}><SelectionIcon /></button>
+              <button type="button" className="btn" aria-label="Try an example" onClick={() => { setText(DEMO_PARAGRAPH); void run(DEMO_PARAGRAPH, { url: "demo: amortized analysis", title: "Amortized analysis (example)" }); }}>Example</button>
+              {showCount && (
+                <span className={`count${text.length > MAX_TEXT_CHARS ? " over" : ""}`} aria-live="polite">{text.length.toLocaleString()} / {MAX_TEXT_CHARS.toLocaleString()}</span>
+              )}
+              <button type="button" className="btn primary push" disabled={!text.trim() || status === "loading"} onClick={() => run(text, PASTED)}>Break it down</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <p className="muted small" aria-live="polite">{text.length > MAX_TEXT_CHARS ? `${text.length.toLocaleString()} characters. Over the ${MAX_TEXT_CHARS.toLocaleString()} limit.` : `${text.length.toLocaleString()} / ${MAX_TEXT_CHARS.toLocaleString()} characters`}</p>
+
+      {!composing && (
+        <div className="source-chip">
+          <span className="truncate">{source.title}</span>
+          <button type="button" className="btn small" onClick={() => setStatus("idle")}>New passage</button>
+        </div>
+      )}
 
       {notice && <div className="notice" role="status">{notice}</div>}
 
@@ -137,7 +153,6 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
         {status === "loading" && <Skeleton label="Breaking the passage into pieces…" />}
         {status === "error" && error && <ErrorBox message={error.message} onRetry={error.retry ? () => run(text || analyzedText.current, source) : undefined} />}
         {status === "idle" && recent && <ReEntryCard session={recent} onWorkThrough={onWorkThrough} />}
-        {status === "idle" && !recent && <p className="muted">Your results will show up here. Nothing on the page is changed.</p>}
 
         {status === "done" && analysis && (
           <>
@@ -146,11 +161,12 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
               const isOpen = open.has(c.id);
               const pop = openTerm?.chunkId === c.id ? openTerm.term : null;
               return (
-                <article className="card" key={c.id}>
+                <article className="card" key={c.id} style={{ "--i": n } as React.CSSProperties}>
                   <h2 className="h2"><span className="badge" aria-hidden="true">{n + 1}</span>{c.heading}</h2>
                   <p className="takeaway"><RichText text={c.takeaway} terms={analysis.terms} bionic={bionic} activeTerm={pop?.term} onTerm={onTerm(c.id)} /></p>
-                  <button type="button" className="link" aria-expanded={isOpen} aria-controls={`detail-${c.id}`} onClick={() => toggleChunk(c.id)}>
+                  <button type="button" className="more" aria-expanded={isOpen} aria-controls={`detail-${c.id}`} onClick={() => toggleChunk(c.id)}>
                     {isOpen ? "Hide detail" : "More detail"}
+                    <span className={`chev${isOpen ? " up" : ""}`}><ChevronIcon /></span>
                   </button>
                   {isOpen && (
                     <p id={`detail-${c.id}`} className="details">
@@ -171,7 +187,6 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
             <ChatBox
               context={{ type: "text", passage: analyzedText.current, overview: analysis.overview }}
               label="Ask about this passage"
-              placeholder='e.g. "explain this like a water pipe system"'
               onAsked={(q) => update((l) => {
                 const s = l.sessions.find((x) => x.url === source.url);
                 return s ? saveSession(l, { ...s, openQuestion: q, at: new Date().toISOString() }) : l;
