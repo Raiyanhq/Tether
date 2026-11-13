@@ -31,7 +31,7 @@ No key yet? `npm run start:mock` serves canned responses so the whole UI works o
 | --- | --- | --- |
 | `LLM_PROVIDER` | auto | `gemini` or `anthropic`. If unset, whichever key is present is used (Gemini first). |
 | `GEMINI_API_KEY` | – | Required for Gemini unless `MOCK_LLM=1`. Never goes in extension code. |
-| `GEMINI_MODEL` | `gemini-3.6-flash` | Any Gemini model id that supports image input and JSON output. |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Any Gemini model id with image input and JSON output. `gemini-3.5-flash-lite` answers in about 2 to 3 seconds. `gemini-3.6-flash` took about 20 seconds in testing because it thinks first. |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | – / `claude-sonnet-5-5` | Optional alternative provider. |
 | `PORT` | `8787` | |
 | `ALLOWED_ORIGINS` | the extension's origin | Comma-separated. CORS is locked to these. The extension has a fixed id (see below), so the default works. |

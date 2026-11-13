@@ -39,7 +39,7 @@ beforeAll(async () => {
 });
 afterAll(() => { fake.close(); });
 
-const llm = () => createGeminiLlm({ apiKey: "secret-key", model: "gemini-test", baseURL });
+const llm = () => createGeminiLlm({ apiKey: "secret-key", model: "gemini-test", baseURL, retryDelayMs: 0 });
 const analysis = { overview: "o", chunks: [{ id: "c1", heading: "h", takeaway: "t", details: "d" }], terms: [] };
 
 describe("gemini backend", () => {
@@ -65,8 +65,14 @@ describe("gemini backend", () => {
     await expect(llm().analyzeText({ text: "hello", knownTerms: [], pinnedAnalogies: [] })).rejects.toBeInstanceOf(BadModelOutputError);
   });
 
+  it("retries once on a transient 503, then succeeds", async () => {
+    replies = [503, JSON.stringify(analysis)];
+    expect((await llm().analyzeText({ text: "hello", knownTerms: [], pinnedAnalogies: [] })).overview).toBe("o");
+    expect(replies).toHaveLength(0);
+  });
+
   it("surfaces provider errors as UpstreamError with the status", async () => {
-    replies = [429];
+    replies = [429, 429];
     await expect(llm().analyzeText({ text: "hello", knownTerms: [], pinnedAnalogies: [] })).rejects.toMatchObject({ status: 429 });
     replies = [403];
     await expect(llm().analyzeText({ text: "hello", knownTerms: [], pinnedAnalogies: [] })).rejects.toBeInstanceOf(UpstreamError);
@@ -99,7 +105,7 @@ describe("gemini backend", () => {
     const ORIGIN = "chrome-extension://x";
     const s = createApp({ llm: llm(), allowedOrigins: [ORIGIN] }).listen(0);
     const b = `http://localhost:${(s.address() as AddressInfo).port}`;
-    replies = [500];
+    replies = [500, 500];
     const r = await fetch(b + "/api/analyze-text", { method: "POST", headers: { "Content-Type": "application/json", Origin: ORIGIN }, body: JSON.stringify({ text: "hi" }) });
     expect(r.status).toBe(502);
     expect((await r.json()).error.code).toBe("upstream");

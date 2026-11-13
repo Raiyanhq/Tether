@@ -13,7 +13,7 @@ interface GeminiChunk {
 const textOf = (c: GeminiChunk) => (c.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
 
 /** Gemini API over plain REST (no SDK). The key goes in a header, never in the URL. */
-export function geminiBackend(opts: { apiKey: string; model: string; baseURL?: string }): Backend {
+export function geminiBackend(opts: { apiKey: string; model: string; baseURL?: string; retryDelayMs?: number }): Backend {
   const base = (opts.baseURL ?? DEFAULT_BASE).replace(/\/$/, "");
   const url = (method: string, query = "") => `${base}/v1beta/models/${encodeURIComponent(opts.model)}:${method}${query}`;
   const headers = { "Content-Type": "application/json", "x-goog-api-key": opts.apiKey };
@@ -21,15 +21,23 @@ export function geminiBackend(opts: { apiKey: string; model: string; baseURL?: s
   // Thinking models count their reasoning against the output cap, so never go below a roomy floor.
   const cap = (n: number) => Math.max(n, 8192);
 
+  // Gemini sometimes answers 503 "high demand" or 429 for a moment. One quick retry rides that out.
+  const RETRYABLE = new Set([429, 500, 503]);
   async function call(method: string, query: string, body: unknown): Promise<Response> {
-    let res: Response;
-    try {
-      res = await fetch(url(method, query), { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(90_000) });
-    } catch {
-      throw new UpstreamError(503, "Could not reach the Gemini API");
+    for (let attempt = 0; ; attempt++) {
+      let res: Response;
+      try {
+        res = await fetch(url(method, query), { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(90_000) });
+      } catch {
+        throw new UpstreamError(503, "Could not reach the Gemini API");
+      }
+      if (res.ok) return res;
+      if (attempt === 0 && RETRYABLE.has(res.status)) {
+        await new Promise((r) => setTimeout(r, opts.retryDelayMs ?? 1000));
+        continue;
+      }
+      throw new UpstreamError(res.status, `Gemini API returned ${res.status}`);
     }
-    if (!res.ok) throw new UpstreamError(res.status, `Gemini API returned ${res.status}`);
-    return res;
   }
 
   return {

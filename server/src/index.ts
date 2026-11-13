@@ -25,7 +25,7 @@ if (process.env.MOCK_LLM === "1") {
     console.error("GEMINI_API_KEY is not set. Copy server/.env.example to server/.env, or run with MOCK_LLM=1.");
     process.exit(1);
   }
-  const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
   llm = createGeminiLlm({ apiKey, model, baseURL: process.env.GEMINI_BASE_URL });
   label = `gemini ${model}`;
 } else if (provider === "anthropic") {
