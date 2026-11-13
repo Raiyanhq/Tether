@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Tether",
+  "version": "0.1.0",
+  "description": "A reading and tutoring side panel that remembers where you got stuck.",
+  "permissions": ["sidePanel", "contextMenus", "storage", "activeTab"],
+  "host_permissions": ["http://localhost:8787/*"],
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "Open Tether" },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
