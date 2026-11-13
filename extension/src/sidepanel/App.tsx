@@ -59,7 +59,15 @@ export function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>Tether</h1>
+        <h1 className="brand">
+          <svg width="30" height="30" viewBox="0 0 128 128" aria-hidden="true">
+            <rect width="128" height="128" rx="30" fill="var(--accent)" />
+            <circle cx="38" cy="64" r="14" fill="none" stroke="#fff" strokeWidth="9" />
+            <circle cx="90" cy="64" r="14" fill="none" stroke="#fff" strokeWidth="9" />
+            <path d="M52 64 H76" stroke="#fff" strokeWidth="9" strokeLinecap="round" />
+          </svg>
+          Tether
+        </h1>
         <div className="header-actions">
           <button type="button" className="btn" aria-haspopup="dialog" aria-expanded={drawer === "glossary"} onClick={() => setDrawer(drawer === "glossary" ? null : "glossary")}>Glossary</button>
           <button type="button" className="btn" aria-haspopup="dialog" aria-expanded={drawer === "settings"} onClick={() => setDrawer(drawer === "settings" ? null : "settings")}>Reading</button>
@@ -70,15 +78,15 @@ export function App() {
         {confirmClear ? (
           <>
             <span>Erase everything Tether remembers?</span>
-            <button type="button" className="btn danger" onClick={() => void doClear()}>Yes, clear it</button>
-            <button type="button" className="btn" onClick={() => setConfirmClear(false)}>Cancel</button>
+            <button type="button" className="btn danger small" onClick={() => void doClear()}>Yes, clear it</button>
+            <button type="button" className="btn small" onClick={() => setConfirmClear(false)}>Cancel</button>
           </>
         ) : (
           <>
             <span className="muted small">Your history stays on this device.</span>
-            <button type="button" className="btn" onClick={() => setConfirmClear(true)}>Clear my history</button>
+            <button type="button" className="btn small" onClick={() => setConfirmClear(true)}>Clear my history</button>
             {DEV_TOOLS && (
-              <button type="button" className="btn" onClick={() => update(() => buildSeedLog())}>Load demo history</button>
+              <button type="button" className="btn small" onClick={() => update(() => buildSeedLog())}>Load demo history</button>
             )}
           </>
         )}

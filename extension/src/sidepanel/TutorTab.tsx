@@ -371,6 +371,9 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
         <button type="button" className="btn" onClick={reset}>New problem</button>
       </div>
       <p className="muted small">Keys: Space pause or play · ← → change step · Esc stop</p>
+      <div className="progress" aria-hidden="true">
+        {lesson.steps.map((st, i) => <span key={st.id} className={i <= index ? "done" : ""} />)}
+      </div>
       <p className="step-count" aria-live="polite">Step {index + 1} of {lesson.steps.length}{status === "stopped" ? " · stopped" : status === "paused" ? " · paused" : ""}</p>
 
       <div className="row options">

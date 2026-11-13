@@ -124,10 +124,10 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
         <button type="button" className="btn primary" disabled={!text.trim() || status === "loading"} onClick={() => run(text, PASTED)}>
           Break it down
         </button>
-        <button type="button" className="btn" onClick={grabSelection}>Use text highlighted on the page</button>
         <button type="button" className="btn" onClick={() => { setText(DEMO_PARAGRAPH); void run(DEMO_PARAGRAPH, { url: "demo: amortized analysis", title: "Amortized analysis (example)" }); }}>
           Try an example
         </button>
+        <button type="button" className="btn" onClick={grabSelection}>Use text highlighted on the page</button>
       </div>
       <p className="muted small" aria-live="polite">{text.length > MAX_TEXT_CHARS ? `${text.length.toLocaleString()} characters. Over the ${MAX_TEXT_CHARS.toLocaleString()} limit.` : `${text.length.toLocaleString()} / ${MAX_TEXT_CHARS.toLocaleString()} characters`}</p>
 
@@ -142,12 +142,12 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
         {status === "done" && analysis && (
           <>
             <p className="overview"><span className="sr-only">Overview: </span>{analysis.overview}</p>
-            {analysis.chunks.map((c) => {
+            {analysis.chunks.map((c, n) => {
               const isOpen = open.has(c.id);
               const pop = openTerm?.chunkId === c.id ? openTerm.term : null;
               return (
                 <article className="card" key={c.id}>
-                  <h2 className="h2">{c.heading}</h2>
+                  <h2 className="h2"><span className="badge" aria-hidden="true">{n + 1}</span>{c.heading}</h2>
                   <p className="takeaway"><RichText text={c.takeaway} terms={analysis.terms} bionic={bionic} activeTerm={pop?.term} onTerm={onTerm(c.id)} /></p>
                   <button type="button" className="link" aria-expanded={isOpen} aria-controls={`detail-${c.id}`} onClick={() => toggleChunk(c.id)}>
                     {isOpen ? "Hide detail" : "More detail"}

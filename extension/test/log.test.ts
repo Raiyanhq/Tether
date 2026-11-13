@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { addNotSure, emptyLog, glossary, knownTerms, pinnedAnalogies, recordLookup, saveSession, togglePin, topStruggles, whenPhrase } from "../src/lib/log";
 import { buildSeedLog } from "../src/lib/seed";
-import { TINTS } from "../src/lib/tints";
-import { contrast } from "../src/lib/contrast";
+import { GLASS_ALPHA, GLASS_STRONG_ALPHA, TINTS } from "../src/lib/tints";
+import { blend, contrast } from "../src/lib/contrast";
 import { applyPrefs, DEFAULT_PREFS } from "../src/lib/prefs";
 
 describe("struggle log", () => {
@@ -64,21 +64,34 @@ describe("struggle log", () => {
   });
 });
 
-describe("tints meet WCAG AA", () => {
+describe("tints meet WCAG AA, including text on glass", () => {
   for (const [id, t] of Object.entries(TINTS)) {
-    it(`${id}: text/muted on bg and surface >= 4.5`, () => {
-      for (const bg of [t.bg, t.surface]) {
-        expect(contrast(t.text, bg)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(t.muted, bg)).toBeGreaterThanOrEqual(4.5);
+    // Worst case: glass laid over each background colour it can sit on.
+    const stops = [t.bgA, t.bgB, ...t.blobs];
+    const layers = stops.flatMap((s) => [blend(t.glass, GLASS_ALPHA, s), blend(t.glass, GLASS_STRONG_ALPHA, s)]);
+    it(`${id}: text and muted text >= 4.5 on every glass layer`, () => {
+      for (const l of layers) {
+        expect(contrast(t.text, l)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(t.muted, l)).toBeGreaterThanOrEqual(4.5);
       }
+      for (const s of stops) expect(contrast(t.text, s)).toBeGreaterThanOrEqual(4.5); // text directly on the page
     });
-    it(`${id}: accent button, accent text and focus ring`, () => {
-      expect(contrast(t.accentText, t.accent)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(t.accent, t.bg)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(t.accent, t.surface)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(t.focus, t.bg)).toBeGreaterThanOrEqual(3);
+    it(`${id}: links, highlights, memory callout and errors >= 4.5`, () => {
+      for (const l of layers) {
+        expect(contrast(t.accent, l)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(t.danger, l)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(t.text, blend(t.accent, 0.12, l))).toBeGreaterThanOrEqual(4.5); // memory callout tint
+        expect(contrast(t.muted, blend(t.accent, 0.12, l))).toBeGreaterThanOrEqual(4.5);
+      }
       expect(contrast(t.text, t.mark)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(t.border, t.bg)).toBeGreaterThanOrEqual(3);
+    });
+    it(`${id}: button, borders and focus ring`, () => {
+      expect(contrast(t.accentText, t.accent)).toBeGreaterThanOrEqual(4.5);
+      for (const l of layers) {
+        expect(contrast(t.border, l)).toBeGreaterThanOrEqual(3);
+        expect(contrast(t.focus, l)).toBeGreaterThanOrEqual(3);
+      }
+      for (const s of stops) expect(contrast(t.focus, s)).toBeGreaterThanOrEqual(3);
     });
   }
 });
@@ -88,7 +101,8 @@ describe("prefs", () => {
     const vars: Record<string, string> = {};
     const root = { style: { setProperty: (k: string, v: string) => (vars[k] = v) } } as unknown as HTMLElement;
     applyPrefs({ ...DEFAULT_PREFS, tint: "cream", dyslexicFont: true, lineHeight: 1.9, letterSpacing: 0.05 }, root);
-    expect(vars["--bg"]).toBe(TINTS.cream.bg);
+    expect(vars["--bg"]).toBe(TINTS.cream.bgA);
+    expect(vars["--glass-rgb"]).toBe("255, 250, 240");
     expect(vars["--font"]).toContain("OpenDyslexic");
     expect(vars["--line-height"]).toBe("1.9");
     expect(vars["--letter-spacing"]).toBe("0.05em");
