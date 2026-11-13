@@ -99,6 +99,14 @@ describe("proxy", () => {
     expect((await post("/api/analyze-image", { imageBase64: "AAAA", mediaType: "image/png" })).status).toBe(200);
   });
 
+  it("extract-text transcribes an image and validates input", async () => {
+    const r = await post("/api/extract-text", { imageBase64: "AAAA", mediaType: "image/png" });
+    expect(r.status).toBe(200);
+    expect((await r.json()).text).toContain("Photosynthesis");
+    expect((await post("/api/extract-text", { imageBase64: "AAAA", mediaType: "image/gif" })).status).toBe(400);
+    expect((await post("/api/extract-text", { imageBase64: "AAAA", mediaType: "image/png" }, null)).status).toBe(403);
+  });
+
   it("chat streams SSE deltas then DONE", async () => {
     const r = await post("/api/chat", {
       messages: [{ role: "user", content: "why?" }],

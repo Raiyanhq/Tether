@@ -1,11 +1,12 @@
-import type { Analysis, ImageAnalysis, Lesson, Step, ChatRequest } from "./schemas.js";
+import type { Analysis, ExtractText, ImageAnalysis, Lesson, Step, ChatRequest } from "./schemas.js";
 import type { z } from "zod";
-import type { AnalyzeTextRequestSchema, LessonRequestSchema, LessonStepRequestSchema, AnalyzeImageRequestSchema } from "./schemas.js";
+import type { AnalyzeTextRequestSchema, LessonRequestSchema, LessonStepRequestSchema, AnalyzeImageRequestSchema, ExtractTextRequestSchema } from "./schemas.js";
 
 export type AnalyzeReq = z.infer<typeof AnalyzeTextRequestSchema>;
 export type LessonReq = z.infer<typeof LessonRequestSchema>;
 export type StepReq = z.infer<typeof LessonStepRequestSchema>;
 export type ImageReq = z.infer<typeof AnalyzeImageRequestSchema>;
+export type ExtractReq = z.infer<typeof ExtractTextRequestSchema>;
 
 /** The model layer. Real implementation: anthropicLlm.ts. Offline demo/dev: mockLlm.ts. */
 export interface Llm {
@@ -13,6 +14,7 @@ export interface Llm {
   lesson(req: LessonReq): Promise<Lesson>;
   lessonStep(req: StepReq): Promise<Step>;
   analyzeImage(req: ImageReq): Promise<ImageAnalysis>;
+  extractText(req: ExtractReq): Promise<ExtractText>;
   chat(req: ChatRequest): AsyncIterable<string>;
 }
 

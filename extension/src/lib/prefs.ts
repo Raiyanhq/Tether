@@ -12,9 +12,11 @@ export interface Prefs {
   bionic: boolean;
   muteVoice: boolean;
   voiceRate: number;       // 0.8 - 1.2
+  voiceNatural: boolean;   // use the server's natural voice (ElevenLabs) when it is available
+  handwriting: boolean;    // Tutor notepad: handwriting style with an animated pen
 }
 export const DEFAULT_PREFS: Prefs = {
-  dyslexicFont: false, lineHeight: 1.6, letterSpacing: 0, tint: "default", theme: "system", bionic: false, muteVoice: false, voiceRate: 1,
+  dyslexicFont: false, lineHeight: 1.6, letterSpacing: 0, tint: "default", theme: "system", bionic: false, muteVoice: false, voiceRate: 1, voiceNatural: true, handwriting: true,
 };
 const KEY = "prefs";
 

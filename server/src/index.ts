@@ -2,6 +2,7 @@ import "dotenv/config";
 import { createApp } from "./app.js";
 import { createAnthropicLlm } from "./anthropicBackend.js";
 import { createGeminiLlm } from "./geminiBackend.js";
+import { createElevenLabsTts, createMockTts, unavailableTts } from "./tts.js";
 import { createMockLlm } from "./mockLlm.js";
 
 // Stable extension id: derived from the "key" in extension/public/manifest.json.
@@ -42,5 +43,17 @@ if (process.env.MOCK_LLM === "1") {
   process.exit(1);
 }
 
-createApp({ llm, allowedOrigins, rateLimitPerMinute: Number(process.env.RATE_LIMIT_PER_MIN ?? 60), trustProxy: process.env.TRUST_PROXY === "1" })
-  .listen(port, () => console.log(`Tether server on http://localhost:${port} (${label})`));
+// Natural voice (optional). Without a key the extension falls back to the browser's built-in voice.
+let tts = unavailableTts;
+if (process.env.MOCK_LLM === "1") tts = createMockTts();
+else if (process.env.ELEVENLABS_API_KEY) {
+  tts = createElevenLabsTts({
+    apiKey: process.env.ELEVENLABS_API_KEY,
+    voiceId: process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL",
+    model: process.env.ELEVENLABS_MODEL || "eleven_flash_v2_5",
+    baseURL: process.env.ELEVENLABS_BASE_URL,
+  });
+}
+
+createApp({ llm, tts, allowedOrigins, rateLimitPerMinute: Number(process.env.RATE_LIMIT_PER_MIN ?? 60), trustProxy: process.env.TRUST_PROXY === "1" })
+  .listen(port, () => console.log(`Tether server on http://localhost:${port} (${label}; voice: ${tts.available ? (process.env.MOCK_LLM === "1" ? "mock" : "elevenlabs") : "browser"})`));

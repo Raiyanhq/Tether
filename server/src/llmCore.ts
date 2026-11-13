@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import {
-  AnalysisSchema, LessonSchema, StepSchema, ImageAnalysisSchema,
+  AnalysisSchema, LessonSchema, StepSchema, ImageAnalysisSchema, ExtractTextSchema,
   type ChatRequest,
 } from "./schemas.js";
 import * as P from "./prompts.js";
@@ -66,6 +66,9 @@ export function createLlm(backend: Backend): Llm {
 
     analyzeImage: (req) =>
       json(ImageAnalysisSchema, P.IMAGE_SYSTEM, [image(req.imageBase64, req.mediaType), text("Explain this image.")], 2000),
+
+    extractText: (req) =>
+      json(ExtractTextSchema, P.EXTRACT_SYSTEM, [image(req.imageBase64, req.mediaType), text("Transcribe the text in this image.")], 4000),
 
     chat(req: ChatRequest) {
       const messages: BackendMessage[] = req.messages.map((m) => ({ role: m.role, parts: [text(m.content)] }));

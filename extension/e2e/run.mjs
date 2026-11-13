@@ -47,6 +47,17 @@ page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
 // The composer folds away once there are results; "New passage" opens it again.
 const openComposer = async () => { const b = page.getByRole("button", { name: "New passage" }); if (await b.isVisible()) await b.click(); await page.locator("#read-input").waitFor({ state: "visible" }); };
 const openReading = async () => { await page.getByRole("button", { name: "Reading preferences" }).click(); await page.getByRole("dialog", { name: /Reading preferences/ }).waitFor(); };
+
+// Simulates Ctrl/Cmd+V: a paste event whose clipboard holds a PNG screenshot (and optionally text too).
+const pasteImage = (withText = "") => page.evaluate(async (withText) => {
+  const c = document.createElement("canvas"); c.width = 300; c.height = 120;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, 300, 120); g.fillStyle = "#000"; g.font = "20px sans-serif"; g.fillText("Photosynthesis", 20, 60);
+  const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+  const dt = new DataTransfer();
+  dt.items.add(new File([blob], "screenshot.png", { type: "image/png" }));
+  if (withText) dt.setData("text/plain", withText);
+  document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+}, withText);
 const store = (area = "local") => page.evaluate((a) => chrome.storage[a].get(null), area);
 
 // ---- M1
@@ -123,6 +134,21 @@ await page.getByRole("button", { name: "Break it down" }).click();
 ok(await page.getByRole("alert").getByText(/Select about 6,000/).isVisible(), "over-limit text asks user to select less");
 await page.locator("#read-input").fill("");
 
+// ---- paste a screenshot into Read
+bodies.length = 0;
+await pasteImage("some copied words"); // clipboard has text too: normal paste, so no image reading
+await page.waitForTimeout(400);
+ok(!bodies.some((b) => b.url.endsWith("/api/extract-text")), "paste with text on the clipboard is left alone");
+await pasteImage();
+await page.locator("article.card").first().waitFor({ timeout: 8000 });
+const ex = bodies.find((b) => b.url.endsWith("/api/extract-text"));
+ok(ex?.body.mediaType === "image/png" && ex.body.imageBase64.length > 100, "Ctrl+V screenshot is sent to /api/extract-text");
+ok((await page.locator("#read-input").inputValue()).includes("Photosynthesis converts"), "text read from the screenshot fills the box");
+ok(bodies.some((b) => b.url.endsWith("/api/analyze-text") && b.body.text.includes("Chloroplasts")), "the screenshot text is then broken into cards");
+ok((await store()).struggleLog.sessions.some((x) => x.url === "pasted screenshot"), "screenshot reading is saved as a session");
+await openComposer();
+await page.locator("#read-input").fill("");
+
 // ---- glossary
 await page.getByRole("button", { name: "Glossary" }).click();
 ok(await page.locator(".glossary li").count() >= 1, "glossary lists opened terms");
@@ -151,13 +177,34 @@ await page.waitForTimeout(300); const tv = await page.locator("#tutor-input").in
 
 await page.locator("#tutor-input").fill("Trace factorial(4) written recursively");
 await page.getByLabel("Mute voice, read silently").waitFor({ state: "hidden" }).catch(() => {});
+// ---- paste a screenshot of the problem into Tutor
+await pasteImage();
+await page.locator("img.thumb").waitFor({ timeout: 5000 });
+ok(true, "Ctrl+V screenshot attaches to the tutor problem");
 bodies.length = 0;
 await page.getByRole("button", { name: "Start lesson" }).click();
 await page.locator(".pad-item").first().waitFor({ timeout: 8000 });
 const lessonReq = bodies.find((b) => b.url.endsWith("/api/lesson"));
 ok(lessonReq?.body.strugglingWith?.[0] === "call stack", `lesson request strugglingWith = ${JSON.stringify(lessonReq?.body.strugglingWith)}`);
+ok(lessonReq?.body.imageBase64?.length > 100 && lessonReq.body.mediaType === "image/png", "the pasted screenshot is sent with the lesson request");
+ok(await page.locator(".pad-problem img").isVisible(), "the screenshot is shown on the notepad with the problem");
 ok(lessonReq?.body.pinnedAnalogies?.some((p) => p.term === "amortized"), "lesson request carries pinned analogies");
 ok(await page.getByText(/Step 1 of 7/).isVisible(), "lesson plays from step 1 of 7");
+
+// natural voice + handwriting notepad
+await page.getByRole("button", { name: "More options" }).click();
+ok(await page.getByLabel("Natural voice").isVisible(), "natural voice option shows when the server has a voice");
+await page.keyboard.press("Escape");
+ok(bodies.some((b) => b.url.endsWith("/api/speak") && b.body.text.length > 0), "narration is sent to /api/speak");
+await page.locator(".narration mark").first().waitFor({ timeout: 6000 });
+ok(true, "narration words highlight in step with the natural voice audio");
+ok(await page.locator(".pad.hand").count() === 1, "notepad uses handwriting style");
+ok((await page.locator(".pad-problem-text").textContent()).includes("factorial(4)"), "the problem is written at the top of the notepad");
+await page.locator("svg.pen").first().waitFor({ timeout: 3000 });
+ok(true, "a pen is drawn while text is being written");
+await page.waitForFunction(() => document.querySelector(".pad-item.active .ink") === null || document.querySelector(".pad-item.active .pen") === null, null, { timeout: 8000 });
+ok(await page.locator(".pad-item.active svg.sketch path").count() === 1, "box steps are drawn as a sketched outline");
+
 
 // keyboard control
 await page.getByRole("button", { name: "More options" }).click();
@@ -299,6 +346,21 @@ ok(!(await bubbleHit()), "Escape on the page closes the bubble");
 ok(artErrors.length === 0, "no errors on the host page " + JSON.stringify(artErrors.slice(0, 2)));
 await art.close();
 await page.bringToFront();
+// ---- handwriting off, and natural-voice failure falls back
+await page.getByRole("tab", { name: "Tutor" }).click();
+await page.getByRole("button", { name: "More options" }).click();
+await page.getByLabel("Handwriting style").uncheck();
+await page.keyboard.press("Escape");
+ok(await page.locator(".pad.hand").count() === 0, "handwriting can be switched off");
+await page.evaluate(async () => { const { prefs } = await chrome.storage.sync.get("prefs"); await chrome.storage.sync.set({ prefs: { ...prefs, muteVoice: false } }); }); // earlier steps muted the voice
+await page.reload();
+await page.route("**/api/speak", (r) => r.abort());
+await page.getByRole("tab", { name: "Tutor" }).click();
+await page.locator("#tutor-input").fill("Trace factorial(4) again");
+await page.getByRole("button", { name: "Start lesson" }).click();
+await page.getByText(/natural voice isn't responding/).waitFor({ timeout: 10000 });
+ok(await page.locator(".pad-item").count() >= 1, "voice failure falls back (notice shown) and the lesson still plays");
+await page.unroute("**/api/speak");
 
 // ---- clear
 await page.getByRole("tab", { name: "Read" }).click();
@@ -313,7 +375,9 @@ ok(!s.struggleLog || (s.struggleLog.terms.length === 0 && s.struggleLog.notSure.
 const mic = await page.evaluate(async () => { try { const st = await navigator.mediaDevices.getUserMedia({ audio: true }); st.getTracks().forEach((t) => t.stop()); return "ok"; } catch (e) { return e.name; } });
 console.log(`INFO  getUserMedia on extension origin (fake device): ${mic}; SpeechRecognition present: ${await page.evaluate(() => !!(window.SpeechRecognition || window.webkitSpeechRecognition))}; speechSynthesis present: ${await page.evaluate(() => "speechSynthesis" in window)}`);
 
-ok(errors.length === 0, `no console/page errors ${errors.length ? JSON.stringify(errors.slice(0, 3)) : ""}`);
+// The one expected console error is the speech request this test blocks on purpose.
+const unexpected = errors.filter((e) => !e.includes("net::ERR_FAILED"));
+ok(unexpected.length === 0, `no console/page errors ${unexpected.length ? JSON.stringify(unexpected.slice(0, 3)) : ""}`);
 await page.screenshot({ path: path.join(os.tmpdir(), "tether-e2e-final.png") });
 await ctx.close();
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nALL PASSED");

@@ -1,4 +1,4 @@
-import type { z } from "zod";
+import { z } from "zod";
 import { SERVER_URL } from "./config";
 import { AnalysisSchema, ImageAnalysisSchema, LessonSchema, StepSchema, type Analysis, type ImageAnalysis, type Lesson, type Step } from "./schemas";
 
@@ -61,6 +61,9 @@ export const requestLessonStep = (b: {
 export const analyzeImage = (b: { imageBase64: string; mediaType: string }): Promise<ImageAnalysis> =>
   postJson("/api/analyze-image", b, ImageAnalysisSchema);
 
+export const extractText = (b: { imageBase64: string; mediaType: string }): Promise<{ text: string; note?: string }> =>
+  postJson("/api/extract-text", b, z.object({ text: z.string(), note: z.string().nullish().transform((v) => v || undefined) }), 60_000);
+
 export type ChatContext =
   | { type: "text"; passage: string; overview?: string }
   | { type: "image"; summary?: string; components?: { label: string; explanation: string }[]; imageBase64?: string; mediaType?: string }
@@ -90,5 +93,25 @@ export async function* chatStream(messages: ChatMessage[], context: ChatContext,
       if (j.error) throw new ApiError("server", j.error);
       if (j.delta) yield j.delta;
     }
+  }
+}
+
+// ---------- natural voice ----------
+const SpeechSchema = z.object({
+  audioBase64: z.string().min(1),
+  mimeType: z.string(),
+  alignment: z.object({ characters: z.array(z.string()), starts: z.array(z.number()), ends: z.array(z.number()) }).optional(),
+});
+export type SpeechResponse = z.infer<typeof SpeechSchema>;
+
+export const requestSpeech = (text: string): Promise<SpeechResponse> => postJson("/api/speak", { text }, SpeechSchema, 30_000);
+
+/** Is natural voice set up on the server? Never throws: any failure just means "use the browser voice". */
+export async function fetchVoiceAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${SERVER_URL}/health`, { signal: AbortSignal.timeout(4000) });
+    return res.ok && ((await res.json()) as { tts?: boolean }).tts === true;
+  } catch {
+    return false;
   }
 }

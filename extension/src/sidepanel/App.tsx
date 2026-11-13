@@ -115,7 +115,7 @@ export function App() {
       <div className="stage">
       <main ref={mainRef}>
         <div className="tabpanel" role="tabpanel" id="panel-read" aria-labelledby="tab-read" hidden={tab !== "read"}>
-          <ReadTab log={log} update={update} getLog={get} bionic={prefs.bionic} incoming={incoming} onWorkThrough={workThrough} />
+          <ReadTab log={log} update={update} getLog={get} bionic={prefs.bionic} incoming={incoming} active={tab === "read" && !hidden} onWorkThrough={workThrough} />
         </div>
         <div className="tabpanel" role="tabpanel" id="panel-tutor" aria-labelledby="tab-tutor" hidden={tab !== "tutor"}>
           {visited.has("tutor") && (

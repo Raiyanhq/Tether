@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, requestLesson, requestLessonStep } from "../lib/api";
 import { DEMO_LESSON, DEMO_PROBLEM } from "../lib/demo";
 import { prepareImage, type PreparedImage } from "../lib/image";
+import { imageFromClipboard } from "../lib/paste";
 import { addNotSure, pinnedAnalogies, topStruggles, type StruggleLog } from "../lib/log";
 import type { Prefs } from "../lib/prefs";
 import type { Lesson, Step } from "../lib/schemas";
 import { getItem, setItem } from "../lib/storage";
 import { listen, recognitionSupported, requestMic, speak, stopSpeaking, ttsSupported, watchLevel, type Listener } from "../lib/speech";
+import { getVoiceAvailable, playPrepared, prefetchSpeech, prepareSpeech } from "../lib/tts";
 import { ErrorBox, Skeleton } from "./components/Common";
 import { CloseIcon, ImageIcon, MoreIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "./components/Icons";
 import { useChat, useReducedMotion } from "./hooks";
@@ -27,6 +29,14 @@ interface Props {
 const CACHE_KEY = "lessonCache";
 interface CacheEntry { key: string; lesson: Lesson; line: string | null }
 const cacheKey = (p: string) => p.trim().toLowerCase();
+
+/** The voice service takes up to 1500 characters per request; cut at a sentence end if an answer is longer. */
+function clip(text: string): string {
+  if (text.length <= 1500) return text;
+  const cut = text.slice(0, 1500);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return end > 200 ? cut.slice(0, end + 1) : cut;
+}
 
 const topicOf = (s: Step) => s.topic ?? (s.visual.content || s.narration).split(/\s+/).slice(0, 5).join(" ");
 
@@ -51,6 +61,11 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   const moreRef = useRef<HTMLButtonElement>(null);
   const menuWrap = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const [ttsAvailable, setTtsAvailable] = useState(false);
+  const [preparing, setPreparing] = useState(false);
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
+  const [lessonProblem, setLessonProblem] = useState("");
+  const [lessonImage, setLessonImage] = useState<string | null>(null);
 
   const chat = useChat();
   const lessonRef = useRef<Lesson | null>(null);
@@ -66,6 +81,9 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   const stopLevel = useRef<(() => void) | null>(null);
   const micStream = useRef<MediaStream | null>(null);
   const sessionAsk = useRef<(q: string) => void>(() => {});
+  const ttsAvailableRef = useRef(false);
+  const naturalBroken = useRef(false); // set when the natural voice fails, so we stop retrying it this session
+  const useNatural = () => prefsRef.current.voiceNatural && ttsAvailableRef.current && !naturalBroken.current;
 
   const setStat = (s: Status) => { statusRef.current = s; setStatus(s); };
   const setIdx = (i: number) => { indexRef.current = i; setIndex(i); };
@@ -76,6 +94,14 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   useEffect(() => {
     if (seedProblem) setProblem(seedProblem.text);
   }, [seedProblem]);
+
+  // Is the natural voice (ElevenLabs) set up on the server? Checked when the Tutor tab is shown.
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    void getVoiceAvailable().then((v) => { if (live) { ttsAvailableRef.current = v; setTtsAvailable(v); } });
+    return () => { live = false; };
+  }, [active]);
 
   // ---------- playback ----------
   const halt = useCallback(() => {
@@ -92,7 +118,6 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
     if (!l) return;
     halt();
     const t = token.current;
-    setIdx(i);
     setStat("playing");
     setQuestion(""); setAnswer("");
     const step = l.steps[i];
@@ -104,18 +129,47 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       else if (i >= lessonRef.current!.steps.length - 1) setStat("done");
       else timer.current = window.setTimeout(() => { if (t === token.current) playStep(i + 1); }, reduced ? 0 : 500);
     };
+    // The step is revealed (and the pen starts writing) at the moment its voice starts, so they stay in sync.
+    const reveal = () => { setIdx(i); setPreparing(false); };
     const { muteVoice, voiceRate } = prefsRef.current;
-    if (muteVoice || !ttsSupported()) {
-      // Reading silently: give roughly 160 words per minute, scaled by the rate slider.
+    const readSilently = () => {
+      reveal();
+      // Reading silently: roughly 160 words per minute, scaled by the speed slider.
       const words = step.narration.split(/\s+/).length;
       timer.current = window.setTimeout(after, Math.max(2000, (words * 375) / voiceRate));
-    } else {
+    };
+    const browserVoice = () => {
+      reveal();
       cancelSpeech.current = speak(step.narration, {
         rate: voiceRate,
         onBoundary: (s, e) => { if (t === token.current) setHl([s, e]); },
         onEnd: after,
       });
+    };
+    const fallBack = () => {
+      naturalBroken.current = true;
+      setVoiceNote("The natural voice isn't responding, so Tether switched to your browser's voice.");
+      if (ttsSupported()) browserVoice(); else readSilently();
+    };
+
+    if (muteVoice) { readSilently(); return; }
+    if (useNatural()) {
+      setPreparing(true);
+      prepareSpeech(step.narration).then((prep) => {
+        if (t !== token.current) return;
+        reveal();
+        cancelSpeech.current = playPrepared(prep, {
+          rate: voiceRate,
+          onBoundary: (st, en) => { if (t === token.current) setHl([st, en]); },
+          onEnd: after,
+          onError: () => { if (t === token.current) fallBack(); },
+        });
+        const next = l.steps[i + 1];
+        if (next) prefetchSpeech(next.narration); // no gap between steps
+      }).catch(() => { if (t === token.current) fallBack(); });
+      return;
     }
+    if (ttsSupported()) browserVoice(); else readSilently();
   }, [halt, reduced]);
 
   const pause = () => { halt(); setStat("paused"); };
@@ -184,6 +238,10 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       else if (cacheKey(p) === cacheKey(DEMO_PROBLEM) && e instanceof ApiError && e.kind === "network") { l = DEMO_LESSON; setStartedFrom(s.line); setOfflineCopy(true); }
       else { setError(e instanceof Error ? e.message : "Could not make a lesson."); setStat("idle"); return; }
     }
+    ttsAvailableRef.current = await getVoiceAvailable(); // settle this before the first step plays
+    setTtsAvailable(ttsAvailableRef.current);
+    setLessonProblem(p || "The problem in the picture");
+    setLessonImage(image?.dataUrl ?? null);
     setLessonBoth(l);
     playStep(0);
   };
@@ -221,6 +279,18 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   };
 
   // ---------- asking ----------
+  const speakAnswer = (text: string) => {
+    const { muteVoice, voiceRate } = prefsRef.current;
+    if (muteVoice) return;
+    const t = token.current;
+    const browser = () => { if (ttsSupported()) cancelSpeech.current = speak(text, { rate: voiceRate, onEnd: () => {} }); };
+    if (!useNatural()) { browser(); return; }
+    prepareSpeech(text).then((prep) => {
+      if (t !== token.current || statusRef.current !== "asking") return;
+      cancelSpeech.current = playPrepared(prep, { rate: voiceRate, onEnd: () => {}, onError: browser });
+    }).catch(() => { if (t === token.current) browser(); });
+  };
+
   const askQuestion = useCallback(async (q: string) => {
     const l = lessonRef.current;
     if (!l || !q.trim()) return;
@@ -228,9 +298,7 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
     setQuestion("");
     const i = indexRef.current;
     const text = await chat.ask(q, { type: "lesson-step", title: l.title, stepsSoFar: l.steps.slice(0, i + 1), currentStep: l.steps[i] }, setAnswer);
-    if (text && statusRef.current === "asking" && !prefsRef.current.muteVoice && ttsSupported()) {
-      cancelSpeech.current = speak(text, { rate: prefsRef.current.voiceRate, onEnd: () => {} });
-    }
+    if (text && statusRef.current === "asking") speakAnswer(clip(text));
   }, [chat, interrupt]);
   sessionAsk.current = askQuestion;
 
@@ -341,6 +409,18 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   };
 
   const reset = () => { setMenu(false); halt(); stopVoice(); chat.reset(); setLessonBoth(null); setStat("idle"); setError(null); setAnswer(""); };
+  // Ctrl/Cmd+V with a screenshot of the problem, before the lesson starts.
+  useEffect(() => {
+    if (!active || lesson) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const f = imageFromClipboard(e);
+      if (f) { e.preventDefault(); void attach(f); }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, lesson]);
+
 
   // ---------- render ----------
   if (!lesson) {
@@ -349,7 +429,7 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
         {struggles.line && <div className="memory" role="note">{struggles.line}</div>}
         <div className="composer">
           <label htmlFor="tutor-input" className="sr-only">Problem to work through</label>
-          <textarea id="tutor-input" rows={3} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="Paste a problem to work through" />
+          <textarea id="tutor-input" rows={3} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="Paste a problem or a screenshot" />
           {image && (
             <div className="thumb-row">
               <img className="thumb" src={image.dataUrl} alt="The problem you attached" />
@@ -386,15 +466,17 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       <div className="progress" aria-hidden="true">
         {lesson.steps.map((st, i) => <span key={st.id} className={i <= index ? "done" : ""} />)}
       </div>
-      <p className="step-count" aria-live="polite">Step {index + 1} of {lesson.steps.length}{status === "stopped" ? " · stopped" : status === "paused" ? " · paused" : ""}</p>
+      <p className="step-count" aria-live="polite">Step {index + 1} of {lesson.steps.length}{status === "stopped" ? " · stopped" : status === "paused" ? " · paused" : ""}{preparing ? " · getting the voice ready…" : ""}</p>
       <p className="sr-only">Keys: Space pauses or plays. Left and right arrows change step. Escape stops.</p>
+
+      {voiceNote && <div className="notice" role="status">{voiceNote}</div>}
 
       <div className="narration" key={step.id} aria-live="off">
         <span className="sr-only">Tutor says: </span>
         {hl ? (<>{narration.slice(0, hl[0])}<mark>{narration.slice(hl[0], hl[1])}</mark>{narration.slice(hl[1])}</>) : narration}
       </div>
 
-      <Notepad steps={revealed} activeIndex={index} reducedMotion={reduced} onSelectStep={(i) => interrupt(i)} onPadClick={() => { if (statusRef.current === "playing") interrupt(); }} />
+      <Notepad steps={revealed} activeIndex={index} reducedMotion={reduced} handwriting={prefs.handwriting} problem={lessonProblem} problemImage={lessonImage} onSelectStep={(i) => interrupt(i)} onPadClick={() => { if (statusRef.current === "playing") interrupt(); }} />
 
       {status === "checkpoint" && step.checkpoint && (
         <section className="panel" aria-labelledby="cp-title" ref={panelRef}>
@@ -458,6 +540,16 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
                 <button type="button" className="btn small" onClick={() => { stop(); setMenu(false); }}>Stop</button>
                 <button type="button" className="btn small" onClick={reset}>New problem</button>
               </div>
+              {ttsAvailable && (
+                <label className="check">
+                  <input type="checkbox" checked={prefs.voiceNatural} onChange={(e) => { naturalBroken.current = false; setVoiceNote(null); updatePrefs({ voiceNatural: e.target.checked }); }} />
+                  Natural voice
+                </label>
+              )}
+              <label className="check">
+                <input type="checkbox" checked={prefs.handwriting} onChange={(e) => updatePrefs({ handwriting: e.target.checked })} />
+                Handwriting style
+              </label>
               <label className="check">
                 <input type="checkbox" checked={prefs.muteVoice} onChange={(e) => { updatePrefs({ muteVoice: e.target.checked }); if (e.target.checked) stopSpeaking(); }} />
                 Mute voice, read silently

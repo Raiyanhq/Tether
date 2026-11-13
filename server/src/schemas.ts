@@ -128,3 +128,11 @@ export const ChatRequestSchema = z.object({
   context: ChatContextSchema,
 });
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
+
+// ---------- speak ----------
+export const SpeakRequestSchema = z.object({ text: z.string().min(1).max(1500) });
+
+// ---------- extract-text (read the text in a screenshot) ----------
+export const ExtractTextRequestSchema = z.object({ imageBase64: Base64Schema, mediaType: MediaTypeSchema });
+export const ExtractTextSchema = z.object({ text: z.string(), note: z.string().nullish().transform((v) => v || undefined) });
+export type ExtractText = z.infer<typeof ExtractTextSchema>;
