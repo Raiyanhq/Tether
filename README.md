@@ -58,7 +58,7 @@ Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpack
 ```bash
 cd server && npm test            # proxy, validation, retry, SSE, Gemini and Anthropic backends against fake endpoints
 cd extension && npm test         # struggle log, seed, WCAG contrast for every tint, prefs
-cd extension && npm run e2e      # drives the built extension in real Chromium against the mock server
+cd extension && npm run e2e      # drives a separate build in real Chromium against its own mock server on :8788 (safe to run while your dev server is up)
 ```
 
 ## Going live

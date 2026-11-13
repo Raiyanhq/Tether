@@ -9,7 +9,7 @@
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "npm run build:demo && node e2e/run.mjs"
+    "e2e": "OUT_DIR=dist-e2e VITE_SERVER_URL=http://localhost:8788 VITE_DEV_TOOLS=1 npm run build && OUT_DIR=dist-e2e node e2e/run.mjs"
   },
   "dependencies": {
     "@fontsource/opendyslexic": "^5.3.0",

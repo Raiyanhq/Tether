@@ -7,18 +7,20 @@ import { fileURLToPath } from "node:url";
 // End-to-end check of the built extension in real Chromium, against the server in MOCK_LLM mode (no API key needed).
 // Run with: npm run e2e   (builds with the demo-history button, starts the mock server, drives the panel)
 const here = path.dirname(fileURLToPath(import.meta.url));
-const EXT = path.resolve(here, "../dist");
+// Own build folder and own port, so it never disturbs your real dist/ or a server you have running.
+const EXT = path.resolve(here, "../dist-e2e");
+const PORT = 8788;
 // Chrome derives the extension id from the manifest "key": sha256 of the public key, first 32 hex digits mapped to a-p.
 const key = Buffer.from(JSON.parse(fs.readFileSync(path.join(EXT, "manifest.json"), "utf8")).key, "base64");
 const ID = [...createHash("sha256").update(key).digest("hex").slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join("");
 
 const server = spawn("npx", ["tsx", "src/index.ts"], {
   cwd: path.resolve(here, "../../server"),
-  env: { ...process.env, MOCK_LLM: "1", PORT: "8787", ALLOWED_ORIGINS: `chrome-extension://${ID}` },
+  env: { ...process.env, MOCK_LLM: "1", PORT: String(PORT), ALLOWED_ORIGINS: `chrome-extension://${ID}` },
   stdio: "ignore",
 });
 for (let i = 0; i < 40; i++) {
-  try { if ((await fetch("http://localhost:8787/health")).ok) break; } catch { /* not up yet */ }
+  try { if ((await fetch(`http://localhost:${PORT}/health`)).ok) break; } catch { /* not up yet */ }
   await new Promise((r) => setTimeout(r, 250));
 }
 process.on("exit", () => server.kill());
