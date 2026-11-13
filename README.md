@@ -38,7 +38,7 @@ No key yet? `npm run start:mock` serves canned responses so the whole UI works o
 | `RATE_LIMIT_PER_MIN` | `60` | Per client IP. |
 | `TRUST_PROXY` | `0` | Set `1` behind a reverse proxy or PaaS. |
 | `ELEVENLABS_API_KEY` | – | Optional. Turns on the natural voice. Without it Tutor Mode uses the browser's built-in voice. |
-| `ELEVENLABS_VOICE_ID` | `21m00Tcm4TlvDq8ikWAM` | Any voice available to your ElevenLabs account (copy its id from your Voices page). |
+| `ELEVENLABS_VOICE_ID` | `EXAVITQu4vr4xnSDxMaL` (Sarah) | Free plans can only use premade voices through the API (Sarah, Adam `pNInz6obpgDQGcFmaJgB`, Antoni `ErXwobaYiN019PkySvjV`). Library voices need a paid plan. |
 | `ELEVENLABS_MODEL` | `eleven_flash_v2_5` | Low-latency model. `eleven_v4` is higher quality but slower. |
 | `MOCK_LLM` | – | `1` = canned responses and a silent mock voice, no keys. |
 

@@ -49,7 +49,7 @@ if (process.env.MOCK_LLM === "1") tts = createMockTts();
 else if (process.env.ELEVENLABS_API_KEY) {
   tts = createElevenLabsTts({
     apiKey: process.env.ELEVENLABS_API_KEY,
-    voiceId: process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM",
+    voiceId: process.env.ELEVENLABS_VOICE_ID || "EXAVITQu4vr4xnSDxMaL",
     model: process.env.ELEVENLABS_MODEL || "eleven_flash_v2_5",
     baseURL: process.env.ELEVENLABS_BASE_URL,
   });
