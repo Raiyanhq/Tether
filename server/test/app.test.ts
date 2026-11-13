@@ -35,8 +35,12 @@ beforeAll(async () => {
 afterAll(() => { server.close(); });
 
 describe("proxy", () => {
-  it("health is open", async () => {
+  it("health and the root status page are open, /api is not", async () => {
     expect((await fetch(base + "/health")).status).toBe(200);
+    const root = await fetch(base + "/");
+    expect(root.status).toBe(200);
+    expect(await root.text()).toContain("Tether server is running");
+    expect((await fetch(base + "/api/analyze-text")).status).toBe(403);
   });
 
   it("rejects missing or foreign origin", async () => {

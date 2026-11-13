@@ -40,7 +40,7 @@ export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60, trustP
 
   // Locked to the extension: browser requests must carry an allowed Origin. Health check is open.
   app.use((req, _res, next) => {
-    if (req.path === "/health") return next();
+    if (req.path === "/health" || req.path === "/") return next();
     const origin = req.headers.origin;
     if (!origin || !allowedOrigins.includes(origin)) {
       return next(new HttpError(403, "forbidden_origin", "Origin not allowed"));
@@ -58,6 +58,9 @@ export function createApp({ llm, allowedOrigins, rateLimitPerMinute = 60, trustP
   }));
 
   app.get("/health", (_req, res) => { res.json({ ok: true }); });
+  app.get("/", (_req, res) => {
+    res.type("text/plain").send("Tether server is running. The /api routes only answer the Tether extension.\n");
+  });
 
   const route = <T extends z.ZodTypeAny>(schema: T, fn: (body: z.output<T>) => Promise<unknown>) =>
     async (req: Request, res: Response, next: NextFunction) => {
