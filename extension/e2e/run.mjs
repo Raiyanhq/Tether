@@ -44,6 +44,17 @@ page.on("request", (r) => { if (r.url().includes("/api/") && r.method() === "POS
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
+
+// Simulates Ctrl/Cmd+V: a paste event whose clipboard holds a PNG screenshot (and optionally text too).
+const pasteImage = (withText = "") => page.evaluate(async (withText) => {
+  const c = document.createElement("canvas"); c.width = 300; c.height = 120;
+  const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, 300, 120); g.fillStyle = "#000"; g.font = "20px sans-serif"; g.fillText("Photosynthesis", 20, 60);
+  const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+  const dt = new DataTransfer();
+  dt.items.add(new File([blob], "screenshot.png", { type: "image/png" }));
+  if (withText) dt.setData("text/plain", withText);
+  document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+}, withText);
 const store = (area = "local") => page.evaluate((a) => chrome.storage[a].get(null), area);
 
 // ---- M1
@@ -109,6 +120,20 @@ await page.getByRole("button", { name: "Break it down" }).click();
 ok(await page.getByRole("alert").getByText(/Select about 6,000/).isVisible(), "over-limit text asks user to select less");
 await page.locator("#read-input").fill("");
 
+// ---- paste a screenshot into Read
+bodies.length = 0;
+await pasteImage("some copied words"); // clipboard has text too: normal paste, so no image reading
+await page.waitForTimeout(400);
+ok(!bodies.some((b) => b.url.endsWith("/api/extract-text")), "paste with text on the clipboard is left alone");
+await pasteImage();
+await page.locator("article.card").first().waitFor({ timeout: 8000 });
+const ex = bodies.find((b) => b.url.endsWith("/api/extract-text"));
+ok(ex?.body.mediaType === "image/png" && ex.body.imageBase64.length > 100, "Ctrl+V screenshot is sent to /api/extract-text");
+ok((await page.locator("#read-input").inputValue()).includes("Photosynthesis converts"), "text read from the screenshot fills the box");
+ok(bodies.some((b) => b.url.endsWith("/api/analyze-text") && b.body.text.includes("Chloroplasts")), "the screenshot text is then broken into cards");
+ok((await store()).struggleLog.sessions.some((x) => x.url === "pasted screenshot"), "screenshot reading is saved as a session");
+await page.locator("#read-input").fill("");
+
 // ---- glossary
 await page.getByRole("button", { name: "Glossary" }).click();
 ok(await page.locator(".glossary li").count() >= 1, "glossary lists opened terms");
@@ -134,11 +159,17 @@ await page.waitForTimeout(300); const tv = await page.locator("#tutor-input").in
 
 await page.locator("#tutor-input").fill("Trace factorial(4) written recursively");
 await page.getByLabel("Mute voice, read silently").waitFor({ state: "hidden" }).catch(() => {});
+// ---- paste a screenshot of the problem into Tutor
+await pasteImage();
+await page.locator("img.thumb").waitFor({ timeout: 5000 });
+ok(true, "Ctrl+V screenshot attaches to the tutor problem");
 bodies.length = 0;
 await page.getByRole("button", { name: "Start lesson" }).click();
 await page.locator(".pad-item").first().waitFor({ timeout: 8000 });
 const lessonReq = bodies.find((b) => b.url.endsWith("/api/lesson"));
 ok(lessonReq?.body.strugglingWith?.[0] === "call stack", `lesson request strugglingWith = ${JSON.stringify(lessonReq?.body.strugglingWith)}`);
+ok(lessonReq?.body.imageBase64?.length > 100 && lessonReq.body.mediaType === "image/png", "the pasted screenshot is sent with the lesson request");
+ok(await page.locator(".pad-problem img").isVisible(), "the screenshot is shown on the notepad with the problem");
 ok(lessonReq?.body.pinnedAnalogies?.some((p) => p.term === "amortized"), "lesson request carries pinned analogies");
 ok(await page.getByText(/Step 1 of 7/).isVisible(), "lesson plays from step 1 of 7");
 

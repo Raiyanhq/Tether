@@ -116,7 +116,7 @@ export function App() {
 
       <main>
         <div role="tabpanel" id="panel-read" aria-labelledby="tab-read" hidden={tab !== "read"}>
-          <ReadTab log={log} update={update} getLog={get} bionic={prefs.bionic} incoming={incoming} onWorkThrough={workThrough} />
+          <ReadTab log={log} update={update} getLog={get} bionic={prefs.bionic} incoming={incoming} active={tab === "read"} onWorkThrough={workThrough} />
         </div>
         <div role="tabpanel" id="panel-tutor" aria-labelledby="tab-tutor" hidden={tab !== "tutor"}>
           <TutorTab log={log} update={update} getLog={get} prefs={prefs} updatePrefs={updatePrefs} active={tab === "tutor"} seedProblem={seedProblem} />

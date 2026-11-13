@@ -2,8 +2,8 @@
 
 A Chrome side-panel extension for neurodivergent learners. It breaks dense text into small cards, tutors you through a problem on a notepad, and, unlike other study tools, **remembers why you got stuck** (the struggle log).
 
-- **Read**: highlight or paste a passage, get 3–6 chunk cards, underlined jargon with plain definitions and analogies.
-- **Tutor**: a 4–8 step lesson, spoken aloud while the working is written on a notepad in a handwriting style, with a pen that writes the problem and each step as it is spoken. Interrupt any step by voice, click or keyboard. The voice can be a natural ElevenLabs voice, with the browser's built-in voice as the fallback.
+- **Read**: highlight or paste a passage, or paste a screenshot with Ctrl/Cmd+V and Tether reads the text out of it, then gets 3–6 chunk cards, underlined jargon with plain definitions and analogies.
+- **Tutor**: a 4–8 step lesson, spoken aloud while the working is written on a notepad in a handwriting style, with a pen that writes the problem and each step as it is spoken. Paste a screenshot of the problem with Ctrl/Cmd+V to work from it. Interrupt any step by voice, click or keyboard. The voice can be a natural ElevenLabs voice, with the browser's built-in voice as the fallback.
 - **Memory**: everything you look up or mark "not sure" is stored locally and used to keep analogies consistent, start lessons at the weak prerequisite, and re-orient you when you come back.
 
 ```
@@ -88,7 +88,7 @@ Fallbacks: if the venue wifi dies, the demo lesson plays from a built-in copy, a
 ## Privacy
 
 - The struggle log lives in `chrome.storage.local`. It is sent to the server only as prompt context for the current request.
-- The server never logs or stores request text.
+- The server never logs or stores request text. Screenshots are resized in the browser, sent only for that one request, and not kept.
 - If you turn on the natural voice, the lines Tether speaks (lesson narration and answers to your questions) go through your server to ElevenLabs to be turned into audio. Your struggle log and the pages you read are not sent. Untick **Natural voice** in the Tutor controls, or leave `ELEVENLABS_API_KEY` unset, to keep all speech on the device.
 - No accounts, no database, no analytics.
 - The extension never modifies the host page. The content script only reads the current selection when the panel asks.

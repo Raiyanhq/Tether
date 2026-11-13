@@ -3,7 +3,7 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import {
-  AnalyzeImageRequestSchema, AnalyzeTextRequestSchema, ChatRequestSchema,
+  AnalyzeImageRequestSchema, AnalyzeTextRequestSchema, ChatRequestSchema, ExtractTextRequestSchema,
   LessonRequestSchema, LessonStepRequestSchema, MAX_TEXT_CHARS, SpeakRequestSchema,
   type Lesson,
 } from "./schemas.js";
@@ -112,6 +112,11 @@ export function createApp({ llm, tts = unavailableTts, allowedOrigins, rateLimit
   }));
 
   app.post("/api/analyze-image", route(AnalyzeImageRequestSchema, (req) => llm.analyzeImage(req)));
+
+  app.post("/api/extract-text", route(ExtractTextRequestSchema, async (req) => {
+    const out = await llm.extractText(req);
+    return { ...out, text: out.text.trim() };
+  }));
 
   app.post("/api/chat", async (req, res, next) => {
     const parsed = ChatRequestSchema.safeParse(req.body);

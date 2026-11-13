@@ -61,6 +61,9 @@ export const requestLessonStep = (b: {
 export const analyzeImage = (b: { imageBase64: string; mediaType: string }): Promise<ImageAnalysis> =>
   postJson("/api/analyze-image", b, ImageAnalysisSchema);
 
+export const extractText = (b: { imageBase64: string; mediaType: string }): Promise<{ text: string; note?: string }> =>
+  postJson("/api/extract-text", b, z.object({ text: z.string(), note: z.string().nullish().transform((v) => v || undefined) }), 60_000);
+
 export type ChatContext =
   | { type: "text"; passage: string; overview?: string }
   | { type: "image"; summary?: string; components?: { label: string; explanation: string }[]; imageBase64?: string; mediaType?: string }

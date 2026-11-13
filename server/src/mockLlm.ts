@@ -53,6 +53,9 @@ export function createMockLlm(): Llm {
         components: [{ label: "Arrow B", explanation: "Shows where the data goes next." }],
       };
     },
+    async extractText() {
+      return { text: "Photosynthesis converts light energy into chemical energy. Chloroplasts contain chlorophyll, which absorbs light. The process produces glucose and oxygen." };
+    },
     async *chat(req) {
       const last = req.messages[req.messages.length - 1]?.content ?? "";
       for (const w of `Short answer to "${last.slice(0, 40)}": think of it step by step.`.split(" ")) {

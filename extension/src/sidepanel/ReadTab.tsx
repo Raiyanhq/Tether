@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { analyzeText, ApiError } from "../lib/api";
+import { analyzeText, ApiError, extractText } from "../lib/api";
 import { MAX_TEXT_CHARS } from "../lib/config";
 import { DEMO_PARAGRAPH } from "../lib/demo";
+import { prepareImage } from "../lib/image";
+import { imageFromClipboard } from "../lib/paste";
 import { knownTerms, latestSession, pinnedAnalogies, recordLookup, saveSession, togglePin, type StruggleLog } from "../lib/log";
 import type { Analysis, Term } from "../lib/schemas";
 import { ChatBox } from "./components/ChatBox";
@@ -18,6 +20,7 @@ interface Props {
   getLog: () => StruggleLog;
   bionic: boolean;
   incoming: Incoming | null;
+  active: boolean;
   onWorkThrough: (question: string, title: string) => void;
 }
 
@@ -25,7 +28,7 @@ interface Source { url: string; title: string }
 const PASTED: Source = { url: "pasted text", title: "Pasted text" };
 const PDF_MESSAGE = "Chrome's built-in PDF viewer doesn't let extensions read it. Copy the passage and paste it into the box above.";
 
-export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }: Props) {
+export function ReadTab({ log, update, getLog, bionic, incoming, active, onWorkThrough }: Props) {
   const [text, setText] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [error, setError] = useState<{ message: string; retry: boolean } | null>(null);
@@ -34,6 +37,8 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [openTerm, setOpenTerm] = useState<{ chunkId: string; term: Term } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [busyLabel, setBusyLabel] = useState("Breaking the passage into pieces…");
+  const fileRef = useRef<HTMLInputElement>(null);
   const analyzedText = useRef("");
   const trigger = useRef<HTMLElement | null>(null);
 
@@ -46,6 +51,7 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
       setError({ message: `That's ${body.length.toLocaleString()} characters. Select about ${MAX_TEXT_CHARS.toLocaleString()} or fewer and try again.`, retry: false });
       return;
     }
+    setBusyLabel("Breaking the passage into pieces…");
     setStatus("loading"); setError(null); setOpenTerm(null); setOpen(new Set());
     setSource(src);
     try {
@@ -62,6 +68,38 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
       setError({ message: e instanceof Error ? e.message : "Something went wrong.", retry: kind !== "too_long" });
     }
   }, [getLog, update]);
+
+  // A screenshot or photo of text: read the words out of it, then break them down like pasted text.
+  const readImage = useCallback(async (blob: Blob) => {
+    setNotice(null); setError(null);
+    setBusyLabel("Reading the screenshot…");
+    setStatus("loading");
+    try {
+      const img = await prepareImage(blob);
+      const r = await extractText({ imageBase64: img.base64, mediaType: img.mediaType });
+      if (!r.text) {
+        setStatus(analysis ? "done" : "idle");
+        setNotice(r.note || "I couldn't find readable text in that image. Try a sharper or closer screenshot.");
+        return;
+      }
+      setText(r.text);
+      await run(r.text, { url: "pasted screenshot", title: "Pasted screenshot" });
+    } catch (e) {
+      setStatus("error");
+      setError({ message: e instanceof Error ? e.message : "Could not read that image.", retry: false });
+    }
+  }, [analysis, run]);
+
+  // Ctrl/Cmd+V with a screenshot on the clipboard.
+  useEffect(() => {
+    if (!active) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const f = imageFromClipboard(e);
+      if (f) { e.preventDefault(); void readImage(f); }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [active, readImage]);
 
   // Text sent from the right-click menu.
   useEffect(() => {
@@ -128,13 +166,17 @@ export function ReadTab({ log, update, getLog, bionic, incoming, onWorkThrough }
           Try an example
         </button>
         <button type="button" className="btn" onClick={grabSelection}>Use text highlighted on the page</button>
+        <button type="button" className="btn" onClick={() => fileRef.current?.click()}>Read a screenshot</button>
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="sr-only-file" tabIndex={-1}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void readImage(f); e.target.value = ""; }} />
       </div>
+      <p className="muted small">Tip: press Ctrl/Cmd+V to paste a screenshot and Tether will read it.</p>
       <p className="muted small" aria-live="polite">{text.length > MAX_TEXT_CHARS ? `${text.length.toLocaleString()} characters. Over the ${MAX_TEXT_CHARS.toLocaleString()} limit.` : `${text.length.toLocaleString()} / ${MAX_TEXT_CHARS.toLocaleString()} characters`}</p>
 
       {notice && <div className="notice" role="status">{notice}</div>}
 
       <section className="results" aria-label="Results" aria-live="polite">
-        {status === "loading" && <Skeleton label="Breaking the passage into pieces…" />}
+        {status === "loading" && <Skeleton label={busyLabel} />}
         {status === "error" && error && <ErrorBox message={error.message} onRetry={error.retry ? () => run(text || analyzedText.current, source) : undefined} />}
         {status === "idle" && recent && <ReEntryCard session={recent} onWorkThrough={onWorkThrough} />}
         {status === "idle" && !recent && <p className="muted">Your results will show up here. Nothing on the page is changed.</p>}

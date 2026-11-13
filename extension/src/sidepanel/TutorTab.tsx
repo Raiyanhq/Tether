@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, requestLesson, requestLessonStep } from "../lib/api";
 import { DEMO_LESSON, DEMO_PROBLEM } from "../lib/demo";
 import { prepareImage, type PreparedImage } from "../lib/image";
+import { imageFromClipboard } from "../lib/paste";
 import { addNotSure, pinnedAnalogies, topStruggles, type StruggleLog } from "../lib/log";
 import type { Prefs } from "../lib/prefs";
 import type { Lesson, Step } from "../lib/schemas";
@@ -379,6 +380,18 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
     try { setImage(await prepareImage(f)); setError(null); } catch (e) { setError(e instanceof Error ? e.message : "Could not read that image."); }
   };
 
+  // Ctrl/Cmd+V with a screenshot of the problem, before the lesson starts.
+  useEffect(() => {
+    if (!active || lesson) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const f = imageFromClipboard(e);
+      if (f) { e.preventDefault(); void attach(f); }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, lesson]);
+
   const reset = () => { halt(); stopVoice(); chat.reset(); setLessonBoth(null); setStat("idle"); setError(null); setAnswer(""); };
 
   // ---------- render ----------
@@ -387,6 +400,7 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       <div>
         <label htmlFor="tutor-input" className="label">Type or paste a problem to work through</label>
         <textarea id="tutor-input" rows={4} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="e.g. Solve 2x + 6 = 14, or: how does recursion unwind?" />
+        <p className="muted small">Tip: press Ctrl/Cmd+V to paste a screenshot of the problem.</p>
         <div className="row">
           <label className="btn file">
             Attach a picture of the problem
