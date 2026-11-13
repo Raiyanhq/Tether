@@ -52,7 +52,7 @@ npm install
 npm run build:demo          # build with the "Load demo history" button
 ```
 
-Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, pick `extension/dist`. Click the Tether toolbar icon to open the side panel. The extension id is fixed (`dncappfhfginimfcnmcndijoophkdcpl`, from the `key` in the manifest) so the server's CORS lock is deterministic.
+Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, pick `extension/dist`. Click the Tether toolbar icon: a glass bubble opens at the top right of the page (click again or press Esc to close it). On pages Chrome blocks (PDFs, `chrome://`, the Web Store) it opens the side panel instead. The extension id is fixed (`dncappfhfginimfcnmcndijoophkdcpl`, from the `key` in the manifest) so the server's CORS lock is deterministic.
 
 `npm run build` makes the production build, without the demo button.
 
@@ -74,14 +74,14 @@ cd extension && npm run e2e      # drives a separate build in real Chromium agai
 
 Setup: server running, extension loaded from `npm run build:demo`, open any normal article in a tab.
 
-1. **(0:00) The problem.** "Dense text, and you forget why you were stuck." Click **Clear my history** to show a cold start, then **Load demo history**: a week of one student's struggles.
-2. **(0:20) Re-entry.** Reload the panel. The empty state is a re-entry card: where you stopped, what you'd reached, your open question. Not a blank box.
-3. **(0:40) Read.** Click **Try an example**. Cards appear. Open **More detail**. Click an underlined term: definition, analogy, why it matters. Press 👍: the analogy is pinned. Open **Glossary**: terms persist across pages.
+1. **(0:00) The problem.** "Dense text, and you forget why you were stuck." Open **Reading preferences** (the **Aa** icon) and under **Your data** click **Clear my history** to show a cold start, then **Load demo history**: a week of one student's struggles.
+2. **(0:20) Re-entry.** Reload the panel. The empty state is a **Continue** card: where you stopped and your open question. Not a blank box.
+3. **(0:40) Read.** Click **Example**. The box folds away and cards appear (**New passage** brings it back). Open **More detail**. Click an underlined term: definition, analogy, why it matters. Press 👍: the analogy is pinned. Open **Glossary**: terms persist across pages.
 4. **(1:10) Consistency.** Click **Break it down** again: the pinned analogy is reused. Highlight text on the article, right-click, **Send to Tether**.
-5. **(1:30) Tutor.** On the **Tutor** tab note the line *"Starting from 'call stack', since you flagged it twice this week."* Click **Try an example**, then **Start lesson**. The lesson opens on the weak prerequisite and draws onto the notepad.
-6. **(2:00) Interrupt.** Click the notepad (or press Space), ask "why do we need that?", hear the answer, press **Got it, continue**. At the checkpoint press **Not sure**: the step is simplified and the topic is added to the log.
-7. **(2:30) Keyboard + sensory.** Space pauses, ← → change step, Esc stops. Open **Reading**: tint, OpenDyslexic, line spacing, bionic. Mention these are preferences, not treatments.
-8. **(2:50) Privacy.** The log stays on the device. **Clear my history** is always visible.
+5. **(1:30) Tutor.** On the **Tutor** tab note the line *"Starting from 'call stack', since you flagged it twice this week."* Click **Example**, then **Start lesson**. The lesson opens on the weak prerequisite and draws onto the notepad.
+6. **(2:00) Interrupt.** Click the notepad or **Ask** (or press Space), ask "why do we need that?", hear the answer, press **Got it, continue**. At the checkpoint press **Not sure**: the step is simplified and the topic is added to the log.
+7. **(2:30) Keyboard + sensory.** Space pauses, ← → change step, Esc stops. **More** (⋯) holds Stop, New problem, Mute and Speed. Open **Reading**: tint, OpenDyslexic, line spacing, bionic. Mention these are preferences, not treatments.
+8. **(2:50) Privacy.** The log stays on the device. **Clear my history** is under **Your data** in Reading preferences.
 
 Fallbacks: if the venue wifi dies, the demo lesson plays from a built-in copy, and the last lesson per problem is cached.
 
@@ -103,6 +103,8 @@ Fallbacks: if the venue wifi dies, the demo lesson plays from a built-in copy, a
 
 ## Known limitations
 
+- The bubble is drawn over the page (in a closed shadow root) and never changes page content. A few sites with a strict Content-Security-Policy may block it; the side panel still works on those pages.
+- Surfaces are translucent but kept opaque enough for WCAG AAA body text (7:1) over any page colour, in every tint, day and night. People who set "reduce transparency" or "increase contrast" get solid surfaces.
 - Chrome's built-in PDF viewer blocks content scripts, so highlight-to-send shows a copy-and-paste message instead.
 - Voice input (push-to-talk, hands-free) depends on Chrome allowing microphone access from a side panel. If blocked, the panel offers a one-click tab to grant it, and typing always works. Hands-free barge-in relies on echo cancellation; use headphones for the best result.
 - The natural voice uses ElevenLabs credits per character. Tether caches each spoken line for the session and prefetches the next step, so replays and pauses cost nothing extra.

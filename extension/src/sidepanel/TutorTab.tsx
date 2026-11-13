@@ -10,6 +10,7 @@ import { getItem, setItem } from "../lib/storage";
 import { listen, recognitionSupported, requestMic, speak, stopSpeaking, ttsSupported, watchLevel, type Listener } from "../lib/speech";
 import { getVoiceAvailable, playPrepared, prefetchSpeech, prepareSpeech } from "../lib/tts";
 import { ErrorBox, Skeleton } from "./components/Common";
+import { CloseIcon, ImageIcon, MoreIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon } from "./components/Icons";
 import { useChat, useReducedMotion } from "./hooks";
 import { Notepad } from "./Notepad";
 
@@ -56,6 +57,10 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   const [micMsg, setMicMsg] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const menuWrap = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const [ttsAvailable, setTtsAvailable] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [voiceNote, setVoiceNote] = useState<string | null>(null);
@@ -308,8 +313,8 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
 
   const micProblem = (p: string) => {
     setMicMsg(p === "denied"
-      ? "The microphone is blocked in this panel. You can type your question instead, or allow the microphone in a tab."
-      : "Voice input isn't available here. Type your question instead.");
+      ? "The microphone is blocked here. Type your question, or allow it in a tab."
+      : "Voice input isn't available here. Type your question.");
   };
 
   const pushToTalk = async () => {
@@ -358,7 +363,7 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       const el = e.target as HTMLElement | null;
       const tag = el?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
-      if (e.key === "Escape") { stop(); return; }
+      if (e.key === "Escape") { e.preventDefault(); stop(); return; }
       if (e.key === " " && tag !== "BUTTON" && tag !== "A") {
         e.preventDefault();
         const s = statusRef.current;
@@ -375,11 +380,35 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   useEffect(() => { if (!active && statusRef.current === "playing") pause(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
+  // The More menu closes on a click or focus outside it, and on Esc wherever focus is (capture phase, so Esc
+  // closes only the menu: it neither stops the lesson nor closes the bubble).
+  useEffect(() => {
+    if (!menu) return;
+    const outside = (e: Event) => { if (!menuWrap.current?.contains(e.target as Node)) setMenu(false); };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault(); e.stopPropagation();
+      setMenu(false); moreRef.current?.focus();
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("focusin", outside);
+    window.addEventListener("keydown", esc, true);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("focusin", outside); window.removeEventListener("keydown", esc, true); };
+  }, [menu]);
+
+  // Checkpoint, question and done panels open below the notepad: bring them into view.
+  useEffect(() => {
+    if (status === "checkpoint" || status === "asking" || status === "done") {
+      panelRef.current?.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
+    }
+  }, [status, reduced]);
+
   const attach = async (f: File | undefined) => {
     if (!f) return;
     try { setImage(await prepareImage(f)); setError(null); } catch (e) { setError(e instanceof Error ? e.message : "Could not read that image."); }
   };
 
+  const reset = () => { setMenu(false); halt(); stopVoice(); chat.reset(); setLessonBoth(null); setStat("idle"); setError(null); setAnswer(""); };
   // Ctrl/Cmd+V with a screenshot of the problem, before the lesson starts.
   useEffect(() => {
     if (!active || lesson) return;
@@ -392,39 +421,32 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, lesson]);
 
-  const reset = () => { halt(); stopVoice(); chat.reset(); setLessonBoth(null); setStat("idle"); setError(null); setAnswer(""); };
 
   // ---------- render ----------
   if (!lesson) {
     return (
       <div>
-        <label htmlFor="tutor-input" className="label">Type or paste a problem to work through</label>
-        <textarea id="tutor-input" rows={4} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="e.g. Solve 2x + 6 = 14, or: how does recursion unwind?" />
-        <p className="muted small">Tip: press Ctrl/Cmd+V to paste a screenshot of the problem.</p>
-        <div className="row">
-          <label className="btn file">
-            Attach a picture of the problem
-            <input type="file" accept="image/*" className="sr-only-file" onChange={(e) => void attach(e.target.files?.[0])} />
-          </label>
-          {image && <button type="button" className="btn" onClick={() => setImage(null)}>Remove picture</button>}
-        </div>
-        {image && <img className="thumb" src={image.dataUrl} alt="The problem you attached" />}
-
-        {struggles.line && (
-          <div className="memory" role="note">
-            <strong>From your history:</strong> {struggles.line}
+        {struggles.line && <div className="memory" role="note">{struggles.line}</div>}
+        <div className="composer">
+          <label htmlFor="tutor-input" className="sr-only">Problem to work through</label>
+          <textarea id="tutor-input" rows={3} value={problem} onChange={(e) => setProblem(e.target.value)} placeholder="Paste a problem or a screenshot" />
+          {image && (
+            <div className="thumb-row">
+              <img className="thumb" src={image.dataUrl} alt="The problem you attached" />
+              <button type="button" className="btn icon small" title="Remove picture" aria-label="Remove picture" onClick={() => setImage(null)}><CloseIcon /></button>
+            </div>
+          )}
+          <div className="tools">
+            <label className="btn icon" title="Attach a picture" aria-label="Attach a picture of the problem">
+              <ImageIcon />
+              <input type="file" accept="image/*" className="sr-only-file" onChange={(e) => void attach(e.target.files?.[0])} />
+            </label>
+            <button type="button" className="btn" aria-label="Try an example" disabled={status === "loading"} onClick={() => setProblem(DEMO_PROBLEM)}>Example</button>
+            <button type="button" className="btn primary push" disabled={(!problem.trim() && !image) || status === "loading"} onClick={() => void start()}>Start lesson</button>
           </div>
-        )}
-
-        <div className="row">
-          <button type="button" className="btn primary" disabled={(!problem.trim() && !image) || status === "loading"} onClick={() => void start()}>
-            Start lesson
-          </button>
-          <button type="button" className="btn" disabled={status === "loading"} onClick={() => setProblem(DEMO_PROBLEM)}>Try an example</button>
         </div>
         {status === "loading" && <Skeleton label="Writing your lesson…" />}
         {error && <ErrorBox message={error} onRetry={() => void start()} />}
-        {!error && status !== "loading" && <p className="muted">Tether talks you through it in 4 to 8 steps and writes the working on a notepad. You can interrupt any time.</p>}
       </div>
     );
   }
@@ -436,41 +458,20 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
 
   return (
     <div className="tutor" tabIndex={-1}>
-      <h2 className="h2">{lesson.title}</h2>
-      <p className="muted">{lesson.goal}</p>
-      {startedFrom && <div className="memory" role="note"><strong>From your history:</strong> {startedFrom}</div>}
-      {offlineCopy && <div className="notice" role="status">You're offline, so this is a saved copy of the lesson.</div>}
+      <h2 className="h2 lesson-title">{lesson.title}</h2>
+      <p className="muted small">{lesson.goal}</p>
+      {startedFrom && <div className="memory" role="note">{startedFrom}</div>}
+      {offlineCopy && <div className="notice" role="status">Offline: showing a saved copy.</div>}
 
-      <div className="controls" role="toolbar" aria-label="Lesson controls">
-        <button type="button" className="btn" onClick={() => goTo(index - 1)} disabled={index === 0} aria-label="Previous step">←</button>
-        <button type="button" className="btn primary" onClick={() => (playing ? pause() : resume())} disabled={status === "checkpoint" || status === "asking" || status === "done"}>
-          {playing ? "Pause" : "Play"}
-        </button>
-        <button type="button" className="btn" onClick={() => goTo(index + 1)} disabled={index >= lesson.steps.length - 1} aria-label="Next step">→</button>
-        <button type="button" className="btn" onClick={stop}>Stop</button>
-        <button type="button" className="btn" onClick={() => interrupt()}>Ask about this step</button>
-        <button type="button" className="btn" onClick={reset}>New problem</button>
-      </div>
-      <p className="muted small">Keys: Space pause or play · ← → change step · Esc stop</p>
       <div className="progress" aria-hidden="true">
         {lesson.steps.map((st, i) => <span key={st.id} className={i <= index ? "done" : ""} />)}
       </div>
       <p className="step-count" aria-live="polite">Step {index + 1} of {lesson.steps.length}{status === "stopped" ? " · stopped" : status === "paused" ? " · paused" : ""}{preparing ? " · getting the voice ready…" : ""}</p>
-
-      <div className="row options">
-        {ttsAvailable && (
-          <label className="check"><input type="checkbox" checked={prefs.voiceNatural} onChange={(e) => { naturalBroken.current = false; setVoiceNote(null); updatePrefs({ voiceNatural: e.target.checked }); }} /> Natural voice</label>
-        )}
-        <label className="check"><input type="checkbox" checked={prefs.handwriting} onChange={(e) => updatePrefs({ handwriting: e.target.checked })} /> Handwriting style</label>
-        <label className="check"><input type="checkbox" checked={prefs.muteVoice} onChange={(e) => { updatePrefs({ muteVoice: e.target.checked }); if (e.target.checked) stopSpeaking(); }} /> Mute voice, read silently</label>
-        <label className="check">Speed {prefs.voiceRate.toFixed(2)}×
-          <input type="range" min={0.8} max={1.2} step={0.05} value={prefs.voiceRate} onChange={(e) => updatePrefs({ voiceRate: Number(e.target.value) })} />
-        </label>
-      </div>
+      <p className="sr-only">Keys: Space pauses or plays. Left and right arrows change step. Escape stops.</p>
 
       {voiceNote && <div className="notice" role="status">{voiceNote}</div>}
 
-      <div className="narration" aria-live="off">
+      <div className="narration" key={step.id} aria-live="off">
         <span className="sr-only">Tutor says: </span>
         {hl ? (<>{narration.slice(0, hl[0])}<mark>{narration.slice(hl[0], hl[1])}</mark>{narration.slice(hl[1])}</>) : narration}
       </div>
@@ -478,7 +479,7 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       <Notepad steps={revealed} activeIndex={index} reducedMotion={reduced} handwriting={prefs.handwriting} problem={lessonProblem} problemImage={lessonImage} onSelectStep={(i) => interrupt(i)} onPadClick={() => { if (statusRef.current === "playing") interrupt(); }} />
 
       {status === "checkpoint" && step.checkpoint && (
-        <section className="panel" aria-labelledby="cp-title">
+        <section className="panel" aria-labelledby="cp-title" ref={panelRef}>
           <h3 id="cp-title" className="h3">Quick check</h3>
           <p>{step.checkpoint}</p>
           <div className="row">
@@ -489,18 +490,18 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       )}
 
       {status === "asking" && (
-        <section className="panel" aria-labelledby="ask-title">
+        <section className="panel" aria-labelledby="ask-title" ref={panelRef}>
           <h3 id="ask-title" className="h3">Ask about step {index + 1}</h3>
-          <form className="row" onSubmit={(e) => { e.preventDefault(); void askQuestion(question); }}>
+          <form className="askbar" onSubmit={(e) => { e.preventDefault(); void askQuestion(question); }}>
             <label htmlFor="ask-q" className="sr-only">Your question</label>
-            <input id="ask-q" type="text" autoFocus value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type your question" />
+            <input id="ask-q" type="text" autoFocus value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Type your question" autoComplete="off" />
             <button type="submit" className="btn primary" disabled={chat.busy || !question.trim()}>Ask</button>
           </form>
           <div className="row">
-            <button type="button" className="btn" aria-pressed={listening} onClick={() => void pushToTalk()}>{listening ? "Listening… tap to send" : "Push to talk"}</button>
-            <button type="button" className="btn" aria-pressed={handsFree} onClick={() => void toggleHandsFree()}>{handsFree ? "Hands-free: on" : "Hands-free: off"}</button>
+            <button type="button" className="btn small" aria-pressed={listening} onClick={() => void pushToTalk()}>{listening ? "Listening… tap to send" : "Push to talk"}</button>
+            <button type="button" className="btn small" aria-pressed={handsFree} onClick={() => void toggleHandsFree()}>{handsFree ? "Hands-free: on" : "Hands-free: off"}</button>
           </div>
-          {micMsg && <div className="notice" role="status">{micMsg} <button type="button" className="link" onClick={openMicTab}>Allow microphone in a tab</button></div>}
+          {micMsg && <div className="notice" role="status">{micMsg} <button type="button" className="link" onClick={openMicTab}>Allow microphone</button></div>}
           <div aria-live="polite" className="answer">{chat.busy && !answer ? "Thinking…" : answer}</div>
           {chat.error && <ErrorBox message={chat.error} />}
           <div className="row">
@@ -511,7 +512,7 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       )}
 
       {status === "done" && (
-        <section className="panel" aria-labelledby="done-title">
+        <section className="panel" aria-labelledby="done-title" ref={panelRef}>
           <h3 id="done-title" className="h3">Done</h3>
           <p><strong>Common mistake:</strong> {lesson.commonMistake}</p>
           <div className="row">
@@ -522,7 +523,45 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
       )}
 
       {error && <ErrorBox message={error} />}
-      {busy && <p className="muted" role="status">Rewriting that step…</p>}
+      {busy && <p className="muted small" role="status">Rewriting that step…</p>}
+
+      <div className="dock" role="toolbar" aria-label="Lesson controls">
+        <button type="button" className="btn icon" title="Previous step" aria-label="Previous step" onClick={() => goTo(index - 1)} disabled={index === 0}><PrevIcon /></button>
+        <button type="button" className="btn icon round primary" title={playing ? "Pause" : "Play"} aria-label={playing ? "Pause" : "Play"} onClick={() => (playing ? pause() : resume())} disabled={status === "checkpoint" || status === "asking" || status === "done"}>
+          <span key={playing ? "pause" : "play"} className="swap">{playing ? <PauseIcon /> : <PlayIcon />}</span>
+        </button>
+        <button type="button" className="btn icon" title="Next step" aria-label="Next step" onClick={() => goTo(index + 1)} disabled={index >= lesson.steps.length - 1}><NextIcon /></button>
+        <button type="button" className="btn" title="Ask about this step" aria-label="Ask about this step" onClick={() => interrupt()}>Ask</button>
+        <div className="menu-wrap" ref={menuWrap}>
+          <button type="button" ref={moreRef} className="btn icon" title="More options" aria-label="More options" aria-haspopup="true" aria-expanded={menu} onClick={() => setMenu((m) => !m)}><MoreIcon /></button>
+          {menu && (
+            <div className="menu" role="group" aria-label="More options">
+              <div className="row">
+                <button type="button" className="btn small" onClick={() => { stop(); setMenu(false); }}>Stop</button>
+                <button type="button" className="btn small" onClick={reset}>New problem</button>
+              </div>
+              {ttsAvailable && (
+                <label className="check">
+                  <input type="checkbox" checked={prefs.voiceNatural} onChange={(e) => { naturalBroken.current = false; setVoiceNote(null); updatePrefs({ voiceNatural: e.target.checked }); }} />
+                  Natural voice
+                </label>
+              )}
+              <label className="check">
+                <input type="checkbox" checked={prefs.handwriting} onChange={(e) => updatePrefs({ handwriting: e.target.checked })} />
+                Handwriting style
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={prefs.muteVoice} onChange={(e) => { updatePrefs({ muteVoice: e.target.checked }); if (e.target.checked) stopSpeaking(); }} />
+                Mute voice, read silently
+              </label>
+              <label className="slider">
+                <span>Speed <b>{prefs.voiceRate.toFixed(2)}×</b></span>
+                <input type="range" min={0.8} max={1.2} step={0.05} value={prefs.voiceRate} onChange={(e) => updatePrefs({ voiceRate: Number(e.target.value) })} />
+              </label>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

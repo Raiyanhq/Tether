@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { addNotSure, emptyLog, glossary, knownTerms, pinnedAnalogies, recordLookup, saveSession, togglePin, topStruggles, whenPhrase } from "../src/lib/log";
 import { buildSeedLog } from "../src/lib/seed";
-import { GLASS_ALPHA, GLASS_STRONG_ALPHA, TINTS } from "../src/lib/tints";
+import { SHEET_ALPHA, TINTS, paletteFor } from "../src/lib/tints";
 import { blend, contrast } from "../src/lib/contrast";
 import { applyPrefs, DEFAULT_PREFS } from "../src/lib/prefs";
 
@@ -64,47 +64,79 @@ describe("struggle log", () => {
   });
 });
 
-describe("tints meet WCAG AA, including text on glass", () => {
+// Worst cases behind the glass: the page can be anything, so test black, white, grey and saturated colours.
+const BACKDROPS = ["#000000", "#ffffff", "#808080", "#ff0000", "#0000ff", "#00ff00"];
+
+describe("every tint, day and night, stays readable over any page behind the glass", () => {
   for (const [id, t] of Object.entries(TINTS)) {
-    // Worst case: glass laid over each background colour it can sit on.
-    const stops = [t.bgA, t.bgB, ...t.blobs];
-    const layers = stops.flatMap((s) => [blend(t.glass, GLASS_ALPHA, s), blend(t.glass, GLASS_STRONG_ALPHA, s)]);
-    it(`${id}: text and muted text >= 4.5 on every glass layer`, () => {
-      for (const l of layers) {
-        expect(contrast(t.text, l)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(t.muted, l)).toBeGreaterThanOrEqual(4.5);
+    for (const mode of ["light", "dark"] as const) {
+      const p = t[mode];
+      const bare: string[] = [];   // short labels sit directly on the glass
+      const dense: string[] = [];  // reading text sits on cards, inputs and sheets
+      for (const b of BACKDROPS) {
+        const g = blend(p.glass, p.glassAlpha, b);
+        bare.push(g);
+        dense.push(blend(p.surface, p.surfaceAlpha, g), blend(p.glass, SHEET_ALPHA, g));
       }
-      for (const s of stops) expect(contrast(t.text, s)).toBeGreaterThanOrEqual(4.5); // text directly on the page
-    });
-    it(`${id}: links, highlights, memory callout and errors >= 4.5`, () => {
-      for (const l of layers) {
-        expect(contrast(t.accent, l)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(t.danger, l)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(t.text, blend(t.accent, 0.12, l))).toBeGreaterThanOrEqual(4.5); // memory callout tint
-        expect(contrast(t.muted, blend(t.accent, 0.12, l))).toBeGreaterThanOrEqual(4.5);
-      }
-      expect(contrast(t.text, t.mark)).toBeGreaterThanOrEqual(4.5);
-    });
-    it(`${id}: button, borders and focus ring`, () => {
-      expect(contrast(t.accentText, t.accent)).toBeGreaterThanOrEqual(4.5);
-      for (const l of layers) {
-        expect(contrast(t.border, l)).toBeGreaterThanOrEqual(3);
-        expect(contrast(t.focus, l)).toBeGreaterThanOrEqual(3);
-      }
-      for (const s of stops) expect(contrast(t.focus, s)).toBeGreaterThanOrEqual(3);
-    });
+      const name = `${id} ${mode}`;
+      it(`${name}: labels on bare glass >= 4.5, focus ring >= 3`, () => {
+        for (const l of bare) {
+          expect(contrast(p.text, l)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(p.focus, l)).toBeGreaterThanOrEqual(3);
+        }
+      });
+      it(`${name}: reading text is AAA (>= 7) on cards and sheets, muted >= 4.5`, () => {
+        for (const l of dense) {
+          expect(contrast(p.text, l)).toBeGreaterThanOrEqual(7);
+          expect(contrast(p.muted, l)).toBeGreaterThanOrEqual(4.5);
+        }
+        expect(contrast(p.text, p.mark)).toBeGreaterThanOrEqual(7);
+      });
+      it(`${name}: accent, errors and the memory callout on cards and sheets`, () => {
+        for (const l of dense) {
+          expect(contrast(p.accent, l)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(p.danger, l)).toBeGreaterThanOrEqual(4.5);
+          const callout = blend(p.accent, 0.08, l);
+          expect(contrast(p.text, callout)).toBeGreaterThanOrEqual(7);
+          expect(contrast(p.muted, callout)).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+      it(`${name}: button label >= 7, input borders and focus ring >= 3`, () => {
+        expect(contrast(p.accentText, p.accent)).toBeGreaterThanOrEqual(7);
+        for (const l of dense) {
+          expect(contrast(p.border, l)).toBeGreaterThanOrEqual(3);
+          expect(contrast(p.focus, l)).toBeGreaterThanOrEqual(3);
+        }
+      });
+    }
   }
 });
 
 describe("prefs", () => {
-  it("applies CSS variables", () => {
+  const apply = (prefs: Parameters<typeof applyPrefs>[0], sysDark = false) => {
     const vars: Record<string, string> = {};
-    const root = { style: { setProperty: (k: string, v: string) => (vars[k] = v) } } as unknown as HTMLElement;
-    applyPrefs({ ...DEFAULT_PREFS, tint: "cream", dyslexicFont: true, lineHeight: 1.9, letterSpacing: 0.05 }, root);
-    expect(vars["--bg"]).toBe(TINTS.cream.bgA);
-    expect(vars["--glass-rgb"]).toBe("255, 250, 240");
+    const attrs: Record<string, string> = {};
+    const root = { style: { setProperty: (k: string, v: string) => (vars[k] = v) }, setAttribute: (k: string, v: string) => (attrs[k] = v) } as unknown as HTMLElement;
+    applyPrefs(prefs, root, sysDark);
+    return { vars, attrs };
+  };
+
+  it("applies CSS variables", () => {
+    const { vars, attrs } = apply({ ...DEFAULT_PREFS, tint: "cream", theme: "light", dyslexicFont: true, lineHeight: 1.9, letterSpacing: 0.05 });
+    expect(vars["--accent"]).toBe(TINTS.cream.light.accent);
+    expect(vars["--glass-rgb"]).toBe("251, 246, 234");
+    expect(attrs["data-theme"]).toBe("light");
     expect(vars["--font"]).toContain("OpenDyslexic");
     expect(vars["--line-height"]).toBe("1.9");
     expect(vars["--letter-spacing"]).toBe("0.05em");
+  });
+
+  it("theme: system follows the device, light and dark override it", () => {
+    expect(apply({ ...DEFAULT_PREFS, theme: "system" }, true).attrs["data-theme"]).toBe("dark");
+    expect(apply({ ...DEFAULT_PREFS, theme: "system" }, false).attrs["data-theme"]).toBe("light");
+    expect(apply({ ...DEFAULT_PREFS, theme: "light" }, true).attrs["data-theme"]).toBe("light");
+    const dark = apply({ ...DEFAULT_PREFS, theme: "dark", tint: "slate" }, false);
+    expect(dark.attrs["data-theme"]).toBe("dark");
+    expect(dark.vars["--text"]).toBe(paletteFor("slate", true).text);
   });
 });
