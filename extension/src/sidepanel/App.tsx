@@ -1,3 +1,4 @@
+import type { PreparedImage } from "../lib/image";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { DEV_TOOLS, IS_BUBBLE } from "../lib/config";
 import { buildSeedLog } from "../lib/seed";
@@ -27,6 +28,7 @@ export function App() {
   const [drawer, setDrawer] = useState<"glossary" | "settings" | null>(null);
   const [incoming, setIncoming] = useState<Incoming | null>(null);
   const [seedProblem, setSeedProblem] = useState<{ text: string; nonce: number } | null>(null);
+  const [seedImage, setSeedImage] = useState<{ image: PreparedImage; nonce: number } | null>(null);
   const [hidden, setHidden] = useState(false); // bubble is closed: keep state, silence the tutor
   const mainRef = useRef<HTMLElement>(null);
   const [visited, setVisited] = useState<Set<Tab>>(new Set(["read"]));
@@ -78,6 +80,16 @@ export function App() {
     pick("tutor");
   };
 
+  // From the Image tab: use the picture as a Tutor problem, or read the words in it.
+  const teachFromImage = (image: PreparedImage) => {
+    setSeedImage({ image, nonce: Date.now() });
+    pick("tutor");
+  };
+  const readFromImage = (text: string) => {
+    setIncoming({ nonce: Date.now(), kind: "text", text, url: "pasted screenshot", title: "Text from an image" });
+    pick("read");
+  };
+
   const pick = (t: Tab) => { mainRef.current?.scrollTo({ top: 0 }); setTab(t); setVisited((v) => (v.has(t) ? v : new Set(v).add(t))); };
 
   return (
@@ -120,14 +132,14 @@ export function App() {
         <div className="tabpanel" role="tabpanel" id="panel-tutor" aria-labelledby="tab-tutor" hidden={tab !== "tutor"}>
           {visited.has("tutor") && (
             <Suspense fallback={<Skeleton label="Loading Tutor…" />}>
-              <TutorTab log={log} update={update} getLog={get} prefs={prefs} updatePrefs={updatePrefs} active={tab === "tutor" && !hidden} seedProblem={seedProblem} />
+              <TutorTab log={log} update={update} getLog={get} prefs={prefs} updatePrefs={updatePrefs} active={tab === "tutor" && !hidden} seedProblem={seedProblem} seedImage={seedImage} />
             </Suspense>
           )}
         </div>
         <div className="tabpanel" role="tabpanel" id="panel-image" aria-labelledby="tab-image" hidden={tab !== "image"}>
           {visited.has("image") && (
             <Suspense fallback={<Skeleton label="Loading Image…" />}>
-              <ImageTab active={tab === "image" && !hidden} />
+              <ImageTab active={tab === "image" && !hidden} onTeach={teachFromImage} onReadText={readFromImage} />
             </Suspense>
           )}
         </div>

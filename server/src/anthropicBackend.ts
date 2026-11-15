@@ -30,8 +30,12 @@ export function anthropicBackend(opts: { apiKey: string; model: string; baseURL?
           model: opts.model, max_tokens: maxTokens, system,
           messages: messages.map((m) => ({ role: m.role, content: toBlocks(m.parts) })),
         });
-        for await (const ev of s) {
-          if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") yield ev.delta.text;
+        try {
+          for await (const ev of s) {
+            if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") yield ev.delta.text;
+          }
+        } finally {
+          s.abort(); // no-op when finished; stops the upstream call when the consumer gave up early
         }
       } catch (e) { wrap(e); }
     },

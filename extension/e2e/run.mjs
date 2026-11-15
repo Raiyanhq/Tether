@@ -16,7 +16,7 @@ const ID = [...createHash("sha256").update(key).digest("hex").slice(0, 32)].map(
 
 const server = spawn("npx", ["tsx", "src/index.ts"], {
   cwd: path.resolve(here, "../../server"),
-  env: { ...process.env, MOCK_LLM: "1", PORT: String(PORT), ALLOWED_ORIGINS: `chrome-extension://${ID}` },
+  env: { ...process.env, MOCK_LLM: "1", MOCK_DELAY_MS: "1500", PORT: String(PORT), ALLOWED_ORIGINS: `chrome-extension://${ID}` },
   stdio: "ignore",
 });
 for (let i = 0; i < 40; i++) {
@@ -257,6 +257,61 @@ await page.locator("#chat-Ask\\ about\\ this\\ image").fill("what does arrow B m
 await page.getByRole("button", { name: "Ask", exact: true }).last().click();
 await page.locator(".msg.assistant", { hasText: "Short answer" }).waitFor({ timeout: 6000 });
 ok(bodies.find((b) => b.url.endsWith("/api/chat"))?.body.context.imageBase64?.length > 1000, "image chat includes the image");
+
+// ---- image tab: stop, quick questions, enlarge, hand-offs
+// stop a running answer
+await page.locator("#chat-Ask\\ about\\ this\\ image").fill("what does arrow B mean?");
+await page.getByRole("button", { name: "Ask", exact: true }).last().click();
+await page.getByRole("button", { name: "Stop answering" }).waitFor({ timeout: 4000 });
+await page.waitForTimeout(500);
+await page.getByRole("button", { name: "Stop answering" }).click();
+await page.waitForTimeout(300);
+ok(await page.getByRole("button", { name: "Stop answering" }).count() === 0 && await page.getByRole("button", { name: "Ask", exact: true }).last().isVisible(), "Stop ends the answer and the Ask button comes back");
+const cutAt = await page.locator(".msg.assistant").last().innerText();
+await page.waitForTimeout(2500);
+ok((await page.locator(".msg.assistant").last().innerText()) === cutAt, "a stopped answer stays cut off where it was stopped");
+ok(await page.locator(".msg.assistant .stopped-tag").last().isVisible(), "a stopped answer is marked Stopped");
+// one-tap question
+bodies.length = 0;
+await page.getByRole("button", { name: "Step by step" }).click();
+await page.locator(".msg.assistant", { hasText: "Short answer to \"Explain this step" }).last().waitFor({ timeout: 8000 });
+ok(bodies.some((b) => b.url.endsWith("/api/chat") && b.body.messages.at(-1).content === "Explain this step by step."), "a quick-question chip asks in one tap");
+// enlarge
+await page.getByRole("button", { name: "Enlarge image" }).first().click();
+ok(await page.getByRole("dialog", { name: "Image, enlarged" }).isVisible(), "tapping the preview enlarges it");
+await page.keyboard.press("Escape");
+ok(await page.getByRole("dialog", { name: "Image, enlarged" }).count() === 0, "Esc closes the enlarged view");
+// read the words in the image
+bodies.length = 0;
+await page.getByRole("button", { name: "Read the text in it" }).click();
+await page.waitForFunction(() => (document.querySelector("#read-input")?.value ?? "").includes("Photosynthesis converts"), null, { timeout: 10000 });
+ok(bodies.some((b) => b.url.endsWith("/api/extract-text")) && await page.getByRole("tab", { name: "Read" }).getAttribute("aria-selected") === "true", "Read the text in it sends the words to the Read tab");
+// teach me this
+await page.getByRole("tab", { name: "Image" }).click();
+await page.getByRole("button", { name: "Teach me this" }).click();
+await page.locator("img.thumb").waitFor({ timeout: 5000 });
+ok(await page.getByRole("tab", { name: "Tutor" }).getAttribute("aria-selected") === "true", "Teach me this opens the Tutor with the picture attached");
+bodies.length = 0;
+await page.getByRole("button", { name: "Start lesson" }).click();
+await page.locator(".pad-item").first().waitFor({ timeout: 10000 });
+ok(bodies.some((b) => b.url.endsWith("/api/lesson") && b.body.imageBase64?.length > 100), "the lesson is built from the image handed over");
+// remove, then stop an analysis with the button and with Esc
+await page.getByRole("tab", { name: "Image" }).click();
+await page.getByRole("button", { name: "Remove image" }).click();
+ok(await page.locator("img.preview").count() === 0, "Remove clears the image");
+await page.getByRole("button", { name: "Try an example diagram" }).click();
+await page.getByRole("button", { name: "Stop analyzing" }).waitFor({ timeout: 4000 });
+await page.getByRole("button", { name: "Stop analyzing" }).click();
+await page.getByText("Stopped. Nothing was kept.").waitFor({ timeout: 3000 });
+ok(await page.locator("#panel-image article.card").count() === 0 && await page.locator("img.preview").isVisible(), "Stop cancels the analysis, keeps the image, shows no breakdown");
+await page.getByRole("button", { name: "Analyze again" }).click();
+await page.getByRole("button", { name: "Stop analyzing" }).waitFor({ timeout: 4000 });
+await page.keyboard.press("Escape");
+await page.getByText("Stopped. Nothing was kept.").waitFor({ timeout: 3000 });
+ok(true, "Esc also stops an analysis");
+await page.getByRole("button", { name: "Analyze again" }).click();
+await page.locator("#panel-image article.card").first().waitFor({ timeout: 8000 });
+ok(true, "Analyze again works after stopping");
 
 
 // ---- Bubble: the toolbar icon draws a glass bubble on normal pages (clicking the real icon can't be automated,

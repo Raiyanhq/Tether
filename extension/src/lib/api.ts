@@ -2,7 +2,7 @@ import { z } from "zod";
 import { SERVER_URL } from "./config";
 import { AnalysisSchema, ImageAnalysisSchema, LessonSchema, StepSchema, type Analysis, type ImageAnalysis, type Lesson, type Step } from "./schemas";
 
-export type ApiErrorKind = "network" | "too_long" | "rate_limited" | "bad_output" | "server";
+export type ApiErrorKind = "network" | "too_long" | "rate_limited" | "bad_output" | "server" | "aborted";
 export class ApiError extends Error {
   constructor(public kind: ApiErrorKind, message: string) { super(message); }
 }
@@ -20,6 +20,8 @@ async function send(path: string, body: unknown, timeoutMs: number, signal?: Abo
       signal: ctrl.signal,
     });
   } catch {
+    // The student pressed Stop: not an error to show.
+    if (signal?.aborted) throw new ApiError("aborted", "Stopped.");
     throw new ApiError("network", "Can't reach the Tether server. Check that it is running and that you are online, then try again.");
   } finally {
     clearTimeout(timer);
@@ -34,9 +36,9 @@ async function send(path: string, body: unknown, timeoutMs: number, signal?: Abo
 }
 
 // Validate against the schema; retry once if the reply is malformed.
-async function postJson<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S, timeoutMs = 45_000): Promise<z.output<S>> {
+async function postJson<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S, timeoutMs = 45_000, signal?: AbortSignal): Promise<z.output<S>> {
   for (let attempt = 0; attempt < 2; attempt++) {
-    const res = await send(path, body, timeoutMs);
+    const res = await send(path, body, timeoutMs, signal);
     try {
       const parsed = schema.safeParse(await res.json());
       if (parsed.success) return parsed.data;
@@ -58,11 +60,11 @@ export const requestLessonStep = (b: {
   lesson: { title: string; goal: string; steps: Step[] }; stepId: string; reason: "not sure" | "explain differently"; strugglingWith: string[];
 }): Promise<Step> => postJson("/api/lesson-step", b, StepSchema);
 
-export const analyzeImage = (b: { imageBase64: string; mediaType: string }): Promise<ImageAnalysis> =>
-  postJson("/api/analyze-image", b, ImageAnalysisSchema);
+export const analyzeImage = (b: { imageBase64: string; mediaType: string }, signal?: AbortSignal): Promise<ImageAnalysis> =>
+  postJson("/api/analyze-image", b, ImageAnalysisSchema, 45_000, signal);
 
-export const extractText = (b: { imageBase64: string; mediaType: string }): Promise<{ text: string; note?: string }> =>
-  postJson("/api/extract-text", b, z.object({ text: z.string(), note: z.string().nullish().transform((v) => v || undefined) }), 60_000);
+export const extractText = (b: { imageBase64: string; mediaType: string }, signal?: AbortSignal): Promise<{ text: string; note?: string }> =>
+  postJson("/api/extract-text", b, z.object({ text: z.string(), note: z.string().nullish().transform((v) => v || undefined) }), 60_000, signal);
 
 export type ChatContext =
   | { type: "text"; passage: string; overview?: string }

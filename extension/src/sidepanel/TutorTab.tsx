@@ -24,6 +24,8 @@ interface Props {
   updatePrefs: (p: Partial<Prefs>) => void;
   active: boolean;
   seedProblem: { text: string; nonce: number } | null;
+  /** A picture handed over from the Image tab. */
+  seedImage?: { image: PreparedImage; nonce: number } | null;
 }
 
 const CACHE_KEY = "lessonCache";
@@ -40,7 +42,7 @@ function clip(text: string): string {
 
 const topicOf = (s: Step) => s.topic ?? (s.visual.content || s.narration).split(/\s+/).slice(0, 5).join(" ");
 
-export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seedProblem }: Props) {
+export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seedProblem, seedImage }: Props) {
   const reduced = useReducedMotion();
   const [problem, setProblem] = useState("");
   const [image, setImage] = useState<PreparedImage | null>(null);
@@ -409,6 +411,15 @@ export function TutorTab({ log, update, getLog, prefs, updatePrefs, active, seed
   };
 
   const reset = () => { setMenu(false); halt(); stopVoice(); chat.reset(); setLessonBoth(null); setStat("idle"); setError(null); setAnswer(""); };
+
+  // A picture sent from the Image tab becomes the problem; any lesson in progress is put away first.
+  useEffect(() => {
+    if (!seedImage) return;
+    reset();
+    setProblem("");
+    setImage(seedImage.image);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedImage]);
   // Ctrl/Cmd+V with a screenshot of the problem, before the lesson starts.
   useEffect(() => {
     if (!active || lesson) return;

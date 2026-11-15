@@ -11,6 +11,10 @@ function demoLesson(): Lesson {
   return LessonSchema.parse(JSON.parse(raw));
 }
 
+// MOCK_DELAY_MS slows image analysis and chat so tests can press Stop mid-response. Zero by default.
+const MOCK_DELAY = Number(process.env.MOCK_DELAY_MS ?? 0);
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export function createMockLlm(): Llm {
   return {
     async analyzeText(req) {
@@ -48,6 +52,7 @@ export function createMockLlm(): Llm {
       return { ...step, narration: `Let me say that more simply. ${step.narration}` };
     },
     async analyzeImage() {
+      if (MOCK_DELAY) await sleep(MOCK_DELAY);
       return {
         summary: "A diagram with labelled arrows (mock response).",
         components: [{ label: "Arrow B", explanation: "Shows where the data goes next." }],
@@ -59,6 +64,7 @@ export function createMockLlm(): Llm {
     async *chat(req) {
       const last = req.messages[req.messages.length - 1]?.content ?? "";
       for (const w of `Short answer to "${last.slice(0, 40)}": think of it step by step.`.split(" ")) {
+        if (MOCK_DELAY) await sleep(MOCK_DELAY / 10);
         yield w + " ";
       }
     },

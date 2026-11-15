@@ -125,6 +125,13 @@ export function createApp({ llm, tts = unavailableTts, allowedOrigins, rateLimit
     }
     // Pull the first chunk before committing to a stream, so early failures can still be a normal JSON error.
     const iter = llm.chat(parsed.data)[Symbol.asyncIterator]();
+    // If the student presses Stop (the browser drops the connection), stop the model too instead of
+    // paying for an answer nobody will read.
+    let closed = false;
+    res.on("close", () => {
+      closed = true;
+      void Promise.resolve(iter.return?.()).catch(() => {});
+    });
     try {
       let first = await iter.next();
       res.writeHead(200, {
@@ -132,10 +139,11 @@ export function createApp({ llm, tts = unavailableTts, allowedOrigins, rateLimit
         "Cache-Control": "no-cache",
         Connection: "keep-alive",
       });
-      while (!first.done) {
+      while (!first.done && !closed) {
         res.write(`data: ${JSON.stringify({ delta: first.value })}\n\n`);
         first = await iter.next();
       }
+      if (closed) return;
       res.write("data: [DONE]\n\n");
       res.end();
     } catch (e) {

@@ -43,6 +43,12 @@ export const CheckIcon = () => (
 export const PinIcon = () => (
   <svg {...base} width={16} height={16}><path d="M12 17v5" /><path d="M8 3h8l-1 6 3 4H6l3-4z" /></svg>
 );
+export const StopIcon = () => (
+  <svg {...base} width={16} height={16} fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
+);
+export const ExpandIcon = () => (
+  <svg {...base} width={18} height={18}><path d="M14 4h6v6" /><path d="M10 20H4v-6" /><path d="m20 4-6.5 6.5" /><path d="m4 20 6.5-6.5" /></svg>
+);
 export const UploadIcon = () => (
   <svg {...base} width={26} height={26}><path d="M12 16V5" /><path d="m7.5 9.5 4.5-4.5 4.5 4.5" /><path d="M5 19h14" /></svg>
 );

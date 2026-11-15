@@ -119,6 +119,34 @@ describe("proxy", () => {
   });
 });
 
+describe("stopping an answer", () => {
+  it("stops the model when the client disconnects mid-answer", async () => {
+    let cleaned = false;
+    const llm: Llm = {
+      ...createMockLlm(),
+      async *chat() {
+        try {
+          for (let i = 0; i < 1000; i++) { yield "word "; await new Promise((r) => setTimeout(r, 20)); }
+        } finally { cleaned = true; }
+      },
+    };
+    const s = createApp({ llm, allowedOrigins: [ORIGIN] }).listen(0);
+    const b = `http://localhost:${(s.address() as AddressInfo).port}`;
+    const ctrl = new AbortController();
+    const r = await fetch(b + "/api/chat", {
+      method: "POST", signal: ctrl.signal,
+      headers: { "Content-Type": "application/json", Origin: ORIGIN },
+      body: JSON.stringify({ messages: [{ role: "user", content: "hi" }], context: { type: "text", passage: "p" } }),
+    });
+    const reader = r.body!.getReader();
+    await reader.read();      // first chunk arrived
+    ctrl.abort();             // student presses Stop
+    for (let i = 0; i < 50 && !cleaned; i++) await new Promise((r) => setTimeout(r, 20));
+    s.close();
+    expect(cleaned).toBe(true);
+  });
+});
+
 describe("errors and limits", () => {
   it("maps a malformed model reply to 502 bad_model_output", async () => {
     const llm: Llm = { ...createMockLlm(), analyzeText: async () => { throw new BadModelOutputError("x"); } };

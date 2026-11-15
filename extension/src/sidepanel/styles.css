@@ -240,7 +240,7 @@ input[type="range"]::-webkit-slider-thumb {
 .drop:hover, .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .drop.compact { flex-direction: row; justify-content: center; padding: 10px 14px; }
 .center-row { display: flex; justify-content: center; margin: 10px 0; }
-.preview { max-width: 100%; border: 1px solid var(--hairline); border-radius: 12px; margin: 10px 0; background: #fff; }
+.preview { max-width: 100%; border: 1px solid var(--hairline); border-radius: 12px; background: #fff; }
 
 /* ---------- tutor ---------- */
 .lesson-title { margin-bottom: 0; }
@@ -344,3 +344,20 @@ input[type="range"]::-webkit-slider-thumb {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after, .theme-fade, .theme-fade * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- image tab: preview, actions, stop, enlarged view ---------- */
+.preview-wrap { position: relative; margin: 10px 0; }
+.preview-btn { display: block; width: 100%; padding: 0; border: 0; background: none; border-radius: 12px; cursor: zoom-in; }
+.preview-btn .preview { display: block; width: 100%; max-height: 320px; object-fit: contain; }
+.preview-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; }
+.preview-tools .btn { width: 32px; height: 32px; min-height: 0; padding: 0; background: var(--ind-bg); box-shadow: 0 1px 6px rgba(0, 0, 0, 0.18); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.suggest { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+.stop-row { gap: 10px; align-items: center; margin-top: 4px; }
+.btn.stopbtn { background: var(--text); color: #fff; }
+.btn.stopbtn:hover:not(:disabled) { background: color-mix(in srgb, var(--text) 82%, #fff); }
+.notice p { margin: 0 0 6px; }
+.lightbox { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(12, 13, 18, 0.88); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); cursor: zoom-out; outline: none; animation: panelin 160ms ease-out both; }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 10px; background: #fff; cursor: default; }
+.lightbox-close { position: absolute; top: 12px; right: 12px; background: var(--ind-bg); color: var(--text); }
+.msg .stopped-tag { display: block; margin-top: 4px; font-size: 0.78rem; font-weight: 600; color: var(--muted); }

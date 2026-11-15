@@ -85,7 +85,7 @@ export function useReducedMotion(): boolean {
   return rm;
 }
 
-export interface UiMessage extends ChatMessage { id: number }
+export interface UiMessage extends ChatMessage { id: number; stopped?: boolean }
 
 /** Streaming chat with a context supplied at ask time. */
 export function useChat() {
@@ -100,6 +100,18 @@ export function useChat() {
     abortRef.current?.abort();
     histRef.current = [];
     setMessages([]); setError(null); setBusy(false);
+  }, []);
+
+  /** Cut the answer off where it is. Whatever has arrived stays on screen. */
+  const stop = useCallback(() => {
+    abortRef.current?.abort();
+    setBusy(false);
+    setMessages((m) => {
+      const last = m.length - 1;
+      // An empty "Thinking…" bubble just disappears; a partial answer stays, marked as stopped.
+      if (m[last]?.role !== "assistant") return m;
+      return m[last].content === "" ? m.slice(0, last) : m.map((x, i) => (i === last ? { ...x, stopped: true } : x));
+    });
   }, []);
 
   const ask = useCallback(async (question: string, context: ChatContext, onDelta?: (soFar: string) => void): Promise<string | null> => {
@@ -131,5 +143,5 @@ export function useChat() {
     }
   }, []);
 
-  return { messages, busy, error, ask, reset };
+  return { messages, busy, error, ask, reset, stop };
 }

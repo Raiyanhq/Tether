@@ -4,6 +4,7 @@ A Chrome side-panel extension for neurodivergent learners. It breaks dense text 
 
 - **Read**: highlight or paste a passage, or paste a screenshot with Ctrl/Cmd+V and Tether reads the text out of it, then gets 3–6 chunk cards, underlined jargon with plain definitions and analogies.
 - **Tutor**: a 4–8 step lesson, spoken aloud while the working is written on a notepad in a handwriting style, with a pen that writes the problem and each step as it is spoken. Paste a screenshot of the problem with Ctrl/Cmd+V to work from it. Interrupt any step by voice, click or keyboard. The voice can be a natural ElevenLabs voice, with the browser's built-in voice as the fallback.
+- **Image**: drop, paste (Ctrl/Cmd+V) or choose a diagram, slide or photo of class notes and get a part-by-part breakdown, enlarge it, ask about it with one-tap questions (step by step, quiz me, simpler), hand it to the Tutor with **Teach me this**, or pull its words into Read. **Stop** (or Esc) cancels an analysis or an answer at any point.
 - **Memory**: everything you look up or mark "not sure" is stored locally and used to keep analogies consistent, start lessons at the weak prerequisite, and re-orient you when you come back.
 
 ```
