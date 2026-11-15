@@ -70,20 +70,8 @@ cd extension && npm run e2e      # drives a separate build in real Chromium agai
 2. Rebuild the extension pointing at it: `VITE_SERVER_URL=https://your-host npm run build`. The build also rewrites `host_permissions` in the manifest.
 3. The server keeps no database and logs no user text: it forwards and forgets.
 
-## Demo script (3 minutes)
-
 Setup: server running, extension loaded from `npm run build:demo`, open any normal article in a tab.
 
-1. **(0:00) The problem.** "Dense text, and you forget why you were stuck." Open **Reading preferences** (the **Aa** icon) and under **Your data** click **Clear my history** to show a cold start, then **Load demo history**: a week of one student's struggles.
-2. **(0:20) Re-entry.** Reload the panel. The empty state is a **Continue** card: where you stopped and your open question. Not a blank box.
-3. **(0:40) Read.** Click **Example**. The box folds away and cards appear (**New passage** brings it back). Open **More detail**. Click an underlined term: definition, analogy, why it matters. Press 👍: the analogy is pinned. Open **Glossary**: terms persist across pages.
-4. **(1:10) Consistency.** Click **Break it down** again: the pinned analogy is reused. Highlight text on the article, right-click, **Send to Tether**.
-5. **(1:30) Tutor.** On the **Tutor** tab note the line *"Starting from 'call stack', since you flagged it twice this week."* Click **Example**, then **Start lesson**. The lesson opens on the weak prerequisite and draws onto the notepad.
-6. **(2:00) Interrupt.** Click the notepad or **Ask** (or press Space), ask "why do we need that?", hear the answer, press **Got it, continue**. At the checkpoint press **Not sure**: the step is simplified and the topic is added to the log.
-7. **(2:30) Keyboard + sensory.** Space pauses, ← → change step, Esc stops. **More** (⋯) holds Stop, New problem, Mute and Speed. Open **Reading**: tint, OpenDyslexic, line spacing, bionic. Mention these are preferences, not treatments.
-8. **(2:50) Privacy.** The log stays on the device. **Clear my history** is under **Your data** in Reading preferences.
-
-Fallbacks: if the venue wifi dies, the demo lesson plays from a built-in copy, and the last lesson per problem is cached.
 
 ## Privacy
 
